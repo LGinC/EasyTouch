@@ -1,7 +1,34 @@
 const std = @import("std");
 
+fn normalizeLinuxHostTarget(query: std.Target.Query, host: std.Target) std.Target.Query {
+    var normalized = query;
+
+    if (host.os.tag != .linux) return normalized;
+    if (query.os_tag != .linux) return normalized;
+    if (query.cpu_arch == null or query.cpu_arch.? != host.cpu.arch) return normalized;
+    if (query.abi != null or query.os_version_min != null or query.os_version_max != null) return normalized;
+    if (query.glibc_version != null or query.android_api_level != null) return normalized;
+    if (query.dynamic_linker.get() != null) return normalized;
+
+    // Treat host-matching Linux triples as native so Zig can discover libc/X11 paths.
+    normalized.cpu_arch = null;
+    normalized.os_tag = null;
+
+    switch (normalized.cpu_model) {
+        .determined_by_arch_os => {
+            if (normalized.cpu_features_add.isEmpty() and normalized.cpu_features_sub.isEmpty()) {
+                normalized.cpu_model = .baseline;
+            }
+        },
+        else => {},
+    }
+
+    return normalized;
+}
+
 pub fn build(b: *std.Build) void {
-    const target = b.standardTargetOptions(.{});
+    const target_query = normalizeLinuxHostTarget(b.standardTargetOptionsQueryOnly(.{}), b.graph.host.result);
+    const target = b.resolveTargetQuery(target_query);
     const optimize = b.standardOptimizeOption(.{});
 
     const core_mod = b.createModule(.{
@@ -56,6 +83,8 @@ pub fn build(b: *std.Build) void {
 
     switch (target.result.os.tag) {
         .linux => {
+            lib.root_module.link_libc = true;
+            exe.root_module.link_libc = true;
             lib.root_module.linkSystemLibrary("X11", .{});
             exe.root_module.linkSystemLibrary("X11", .{});
         },
