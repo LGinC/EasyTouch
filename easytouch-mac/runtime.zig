@@ -791,7 +791,6 @@ pub fn mouseScroll(allocator: std.mem.Allocator, delta: i32) !core.model.AckResp
     if (delta == 0) {
         return core.model.failure(core.model.Ack, "mouse.scroll", core.errors.codes.invalid_args, "delta must be non-zero.", null);
     }
-    _ = allocator;
     const event = macos.CGEventCreateScrollWheelEvent(null, macos.kCGScrollEventUnitLine, 1, delta) orelse {
         return core.model.failure(core.model.Ack, "mouse.scroll", core.errors.codes.system_error, "CGEventCreateScrollWheelEvent failed on macOS.", null);
     };
@@ -1625,6 +1624,7 @@ fn macRunAppleScriptOrFailure(allocator: std.mem.Allocator, capability: []const 
 
 fn macAckResolutionFailure(allocator: std.mem.Allocator, capability: []const u8, handle: u64, err: anyerror) core.model.AckResponse {
     _ = allocator;
+    _ = handle;
     return switch (err) {
         error.InvalidHandle => core.model.failure(core.model.Ack, capability, core.errors.codes.invalid_args, "Window operation requires a non-zero handle.", null),
         error.WindowNotFound => core.model.failure(core.model.Ack, capability, core.errors.codes.not_found, "The requested macOS window handle is no longer present in the CoreGraphics snapshot.", null),

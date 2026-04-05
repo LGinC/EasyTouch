@@ -1870,16 +1870,14 @@ fn linuxRunWindowTool(allocator: std.mem.Allocator, argv: []const []const u8, ca
     if (result.exit_code != 0) {
         const detail = linuxCommandDetail(allocator, result) catch null;
         _ = detail;
-        switch (capability[0]) {
-            else => {},
-        }
+        _ = capability;
         return error.LinuxToolFailed;
     }
     _ = missing_message;
-    _ = capability;
 }
 
 fn linuxAckToolFailure(allocator: std.mem.Allocator, capability: []const u8, missing_message: []const u8, err: anyerror) core.model.AckResponse {
+    _ = allocator;
     return switch (err) {
         error.MissingLinuxTool => core.model.failure(core.model.Ack, capability, core.errors.codes.not_implemented, missing_message, "Install the required desktop automation tool and run inside an interactive desktop session."),
         error.LinuxToolFailed => core.model.failure(core.model.Ack, capability, core.errors.codes.system_error, "Desktop automation command failed.", null),
