@@ -44,6 +44,14 @@ fn configureMacSysroot(b: *std.Build, target: std.Build.ResolvedTarget) void {
     }
 }
 
+fn configureMacFrameworkPaths(module: *std.Build.Module, b: *std.Build, target: std.Build.ResolvedTarget) void {
+    if (target.result.os.tag != .macos) return;
+    const sysroot = b.sysroot orelse return;
+    const framework_dir = b.pathResolve(&.{ sysroot, "System", "Library", "Frameworks" });
+    module.addFrameworkPath(.{ .cwd_relative = framework_dir });
+    module.addSystemFrameworkPath(.{ .cwd_relative = framework_dir });
+}
+
 pub fn build(b: *std.Build) void {
     const target_query = normalizeLinuxHostTarget(b.standardTargetOptionsQueryOnly(.{}), b.graph.host.result);
     const target = b.resolveTargetQuery(target_query);
@@ -100,6 +108,9 @@ pub fn build(b: *std.Build) void {
         .name = "et",
         .root_module = root_mod,
     });
+
+    configureMacFrameworkPaths(lib.root_module, b, target);
+    configureMacFrameworkPaths(exe.root_module, b, target);
 
     switch (target.result.os.tag) {
         .linux => {
