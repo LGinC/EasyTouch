@@ -126,7 +126,6 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    environment: ${{ vars.NPM_PUBLISH_ENVIRONMENT || 'build' }}
     strategy:
       fail-fast: false
       matrix:
@@ -161,7 +160,6 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    environment: ${{ vars.NPM_PUBLISH_ENVIRONMENT || 'build' }}
 
     steps:
       - name: Check out repository
