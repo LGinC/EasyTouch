@@ -13,7 +13,14 @@
 ### npm 安装
 
 ```bash
-npm install easytouch
+# Windows
+npm install -g easytouch-windows
+
+# Linux
+npm install -g easytouch-linux
+
+# macOS
+npm install -g easytouch-macos
 ```
 
 安装后直接使用：

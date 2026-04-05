@@ -1,36 +1,23 @@
 {
-  "name": "easytouch",
+  "name": "easytouch-workspace",
+  "private": true,
   "version": "1.0.8-dev",
-  "description": "Cross-platform EasyTouch CLI launcher and npm entrypoint.",
+  "description": "EasyTouch repository workspace and release tooling.",
   "license": "SEE LICENSE IN LICENSE.txt",
   "type": "commonjs",
   "repository": {
     "type": "git",
-    "url": "https://github.com/whuanle/EasyTouch"
+    "url": "git+https://github.com/whuanle/EasyTouch.git"
   },
   "bugs": {
     "url": "https://github.com/whuanle/EasyTouch/issues"
   },
   "homepage": "https://github.com/whuanle/EasyTouch#readme",
-  "bin": {
-    "et": "bin/et.js"
-  },
-  "files": [
-    "bin/et.js",
-    "LICENSE.txt",
-    "README.md",
-    "SKILL.md"
-  ],
-  "optionalDependencies": {
-    "easytouch-windows": "1.0.8-dev",
-    "easytouch-linux": "1.0.8-dev",
-    "easytouch-macos": "1.0.8-dev"
-  },
   "engines": {
     "node": ">=18"
   },
   "scripts": {
-    "pack:dry-run": "npm pack --dry-run",
-    "release:set-version": "node scripts/release/set-version.mjs"
+    "release:set-version": "node scripts/release/set-version.mjs",
+    "release:tag": "node ./release-tag.mjs"
   }
 }

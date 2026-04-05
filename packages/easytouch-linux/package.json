@@ -6,7 +6,7 @@
   "type": "commonjs",
   "repository": {
     "type": "git",
-    "url": "https://github.com/whuanle/EasyTouch"
+    "url": "git+https://github.com/whuanle/EasyTouch.git"
   },
   "bugs": {
     "url": "https://github.com/whuanle/EasyTouch/issues"

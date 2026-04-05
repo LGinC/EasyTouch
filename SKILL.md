@@ -1,6 +1,6 @@
 ---
 name: easytouch
-description: EasyTouch Skill 接入文档（CLI + MCP）。
+description: 跨平台系统自动化操作工具，支持 Windows、Linux、macOS。提供 CLI 命令行和 MCP 服务器两种使用方式，支持鼠标键盘控制、屏幕截图、窗口管理、系统信息查询等功能。
 ---
 
 # EasyTouch Skill
@@ -18,8 +18,17 @@ description: EasyTouch Skill 接入文档（CLI + MCP）。
 ### npm 安装
 
 ```bash
-npm install easytouch
+# Windows
+npm install -g easytouch-windows
+
+# Linux
+npm install -g easytouch-linux
+
+# macOS
+npm install -g easytouch-macos
 ```
+
+
 
 安装后命令入口：
 
@@ -362,5 +371,4 @@ et mcp-stdio --output json
   }
 }
 ```
-
 

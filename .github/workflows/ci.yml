@@ -71,12 +71,8 @@ jobs:
       - name: Smoke test system info JSON
         run: zig build run -- system os-info --output json
 
-      - name: Dry-run root npm package
-        run: |
-          node scripts/release/set-version.mjs 0.1.0-ci
-          npm pack --dry-run
-
       - name: Dry-run host platform npm package
         run: |
+          node scripts/release/set-version.mjs 0.1.0-ci
           node scripts/release/stage-platform-package.mjs --template packages/${{ matrix.package_name }} --output dist/npm/${{ matrix.package_name }} --binary zig-out/bin/${{ matrix.binary_name }} --binary-name ${{ matrix.binary_name }}
           npm pack --dry-run ./dist/npm/${{ matrix.package_name }}

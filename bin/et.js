@@ -47,7 +47,7 @@ function resolveBinaryPath() {
   try {
     packageJsonPath = require.resolve(`${packageName}/package.json`);
   } catch (error) {
-    fail(`The platform package '${packageName}' is not installed. Reinstall 'easytouch' on this host.`);
+    fail(`The platform package '${packageName}' is not installed. Install that platform package on this host.`);
   }
 
   const packageRoot = path.dirname(packageJsonPath);

@@ -53,14 +53,6 @@ for (const filePath of packageFiles) {
   const packageJson = JSON.parse(await fs.readFile(filePath, "utf8"));
   packageJson.version = publishableVersion;
 
-  if (packageJson.name === "easytouch") {
-    packageJson.optionalDependencies = {
-      "easytouch-windows": publishableVersion,
-      "easytouch-linux": publishableVersion,
-      "easytouch-macos": publishableVersion,
-    };
-  }
-
   await fs.writeFile(filePath, `${JSON.stringify(packageJson, null, 2)}\n`, "utf8");
   console.log(`updated ${path.relative(repoRoot, filePath)} -> ${publishableVersion}`);
 }
