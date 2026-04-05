@@ -18,6 +18,9 @@ description: 跨平台系统自动化操作工具，支持 Windows、Linux、mac
 ### npm 安装
 
 ```bash
+# 推荐：自动匹配当前平台
+npm install -g @whuanle/easytouch
+
 # Windows
 npm install -g easytouch-windows
 
@@ -361,12 +364,35 @@ et mcp-stdio --output json
 
 ### 配置示例
 
+优先使用全局 `et` 命令，这样三个平台都是同一套 MCP 配置：
+
 ```json
 {
   "mcpServers": {
     "easytouch": {
       "command": "et",
       "args": ["mcp-stdio"]
+    }
+  }
+}
+```
+
+如果宿主程序不能从 PATH 找到命令：
+
+- Windows：把 `command` 改成 `C:\Users\<你自己的用户名>\AppData\Roaming\npm\et.cmd`
+- Linux / macOS：先执行 `npm prefix -g`，再把 `command` 改成 `<prefix>/bin/et`
+
+如果不想全局安装，也可以临时通过 `npx` 启动：
+
+- Windows：`command` 推荐写 `npx.cmd`
+- Linux / macOS：`command` 写 `npx`
+
+```json
+{
+  "mcpServers": {
+    "easytouch": {
+      "command": "npx",
+      "args": ["-y", "@whuanle/easytouch", "mcp-stdio"]
     }
   }
 }

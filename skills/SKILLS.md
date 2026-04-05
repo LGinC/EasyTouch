@@ -13,6 +13,9 @@
 ### npm 安装
 
 ```bash
+# 推荐：自动匹配当前平台
+npm install -g @whuanle/easytouch
+
 # Windows
 npm install -g easytouch-windows
 

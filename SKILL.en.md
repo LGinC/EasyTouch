@@ -16,6 +16,9 @@ When installed through npm: Node.js >= 18.
 ### Install with npm
 
 ```bash
+# Recommended: auto-select the current platform
+npm install -g @whuanle/easytouch
+
 # Windows
 npm install -g easytouch-windows
 
@@ -329,12 +332,35 @@ et mcp-stdio --output json
 
 ### Configuration Example
 
+Prefer the global `et` command first. That gives you one MCP configuration that works across all three platforms.
+
 ```json
 {
   "mcpServers": {
     "easytouch": {
       "command": "et",
       "args": ["mcp-stdio"]
+    }
+  }
+}
+```
+
+If the host application cannot resolve commands from PATH:
+
+- Windows: change `command` to `C:\Users\<your-user>\AppData\Roaming\npm\et.cmd`
+- Linux / macOS: run `npm prefix -g` first, then change `command` to `<prefix>/bin/et`
+
+If you do not want a global install, you can also launch through `npx`:
+
+- Windows: prefer `npx.cmd` as `command`
+- Linux / macOS: use `npx` as `command`
+
+```json
+{
+  "mcpServers": {
+    "easytouch": {
+      "command": "npx",
+      "args": ["-y", "@whuanle/easytouch", "mcp-stdio"]
     }
   }
 }

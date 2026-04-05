@@ -1,5 +1,7 @@
 # EasyTouch
 
+## 中文 | [English](README.en.md) 
+
 跨平台系统自动化操作工具，支持 Windows、Linux、macOS。提供 CLI 命令行和 MCP 服务器两种使用方式，支持鼠标键盘控制、屏幕截图、窗口管理、系统信息查询等功能。
 
 目前支持以下操作系统的 x64 和 ARM64 两种 CPU 架构：
@@ -33,11 +35,11 @@
 
 ### 安装
 
-没有通用的 `easytouch` 根包，只安装当前操作系统对应的平台包：
+推荐安装带自动平台选择能力的启动包；如果你只想安装当前系统，也可以直接安装对应平台包：
 
 ```bash
-# 自动区配平台
-npm i -g easytouch
+# 推荐：自动匹配当前平台
+npm i -g @whuanle/easytouch
 
 # Windows
 npm i -g easytouch-windows
@@ -51,9 +53,9 @@ npm i -g easytouch-macos
 
 
 
-平台包内部同时包含 x64 和 arm64 二进制，安装后会根据当前 CPU 架构自动选择对应程序文件。
+`@whuanle/easytouch` 会在当前主机上调用对应的平台包；平台包内部同时包含 x64 和 arm64 二进制，安装后会根据当前 CPU 架构自动选择对应程序文件。
 
-如果是 Windows，安装后在 `AppData/Roaming/npm` 目录会发现名为 `et` 的文件。
+如果是 Windows，安装后在 `AppData/Roaming/npm` 目录会发现名为 `et` 的文件。
 
 ![image-20260405194137861](images/image-20260405194137861.png)
 
@@ -97,7 +99,7 @@ npx skills add https://github.com/whuanle/EasyTouch
 
 如果只是给 AI 工具使用，建议使用 skills 即可，配置 MCP 可能会麻烦一些。
 
-在 Claude、Cursor 等工具中，配置 MCP 的方式都是大同小异。通过 npm/bun 安装后，优先直接调用 `et` 或 `npx`。如果必须引用平台包内的真实二进制，路径位于平台包的 `bin/x64` 或 `bin/arm64` 目录下，例如在 Windows 下在 `AppData/Roaming/npm/node_modules/easytouch-windows/bin`。
+在 Claude、Cursor、VS Code、Sidecar 等工具中，配置 MCP 的方式基本一致。通过 npm 安装后，推荐直接调用全局 `et`，这样 Windows、Linux、macOS 都能使用同一套配置。只有在宿主程序无法从 PATH 找到命令时，才退回到完整路径或 `npx`。
 
 
 
@@ -105,22 +107,45 @@ npx skills add https://github.com/whuanle/EasyTouch
 
 
 
-**NPM 安装方式（推荐）**
+**全局安装后（推荐，三平台统一写法）**
 
-使用 `npx` 时，包名必须写当前平台对应的包名：Windows 用 `easytouch-windows`，Linux 用 `easytouch-linux`，macOS 用 `easytouch-macos`。
+先执行 `npm i -g @whuanle/easytouch`，或者安装对应平台包，然后使用：
+
+```json
+{
+  "mcpServers": {
+    "easytouch": {
+      "command": "et",
+      "args": ["mcp-stdio"]
+    }
+  }
+}
+```
+
+**宿主程序不走 PATH 时**
+
+- Windows：把 `command` 改成 `C:\\Users\\<你自己的用户名>\\AppData\\Roaming\\npm\\et.cmd`
+- Linux / macOS：先执行 `npm prefix -g`，然后把 `command` 改成 `<prefix>/bin/et`
+
+**不想全局安装时（备用）**
+
+如果你不想全局安装，也可以临时通过 `npx` 启动。这里同样建议统一使用 `@whuanle/easytouch`，不要再按平台分别写包名。
+
+- Windows：`command` 推荐写 `npx.cmd`
+- Linux / macOS：`command` 写 `npx`
 
 ```json
 {
   "mcpServers": {
     "easytouch": {
       "command": "npx",
-      "args": ["-y", "easytouch-windows", "mcp-stdio"]
+      "args": ["-y", "@whuanle/easytouch", "mcp-stdio"]
     }
   }
 }
 ```
 
-> 请替换 `easytouch-windows` 为对应的操作系统平台名称。
+> 如果是在 Windows 的 GUI 程序中配置 MCP，`command` 往往应显式写成 `npx.cmd` 或 `et.cmd`，不要只写 `npx`，否则有些宿主不会按 PowerShell 规则解析 `.ps1` / `.cmd`。
 
 
 

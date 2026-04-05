@@ -1,5 +1,7 @@
 # EasyTouch
 
+## [中文](README.md) | English 
+
 EasyTouch is a cross-platform desktop automation tool for Windows, Linux, and macOS. It provides both a CLI and an MCP server, with support for mouse and keyboard control, screenshots, window management, and system information queries.
 
 Currently supported CPU architectures on the following operating systems:
@@ -26,10 +28,10 @@ EasyTouch gives AI a pair of eyes and hands. It currently supports:
 
 ### Installation
 
-Install the package for your current operating system. If you want a single command that auto-selects the current platform, install the scoped launcher package.
+Install the scoped launcher package if you want automatic platform selection. If you only want the package for the current host OS, you can install the platform package directly.
 
 ```bash
-# Auto-detect the current platform
+# Recommended: auto-select the current platform
 npm i -g @whuanle/easytouch
 
 # Windows
@@ -42,7 +44,7 @@ npm i -g easytouch-linux
 npm i -g easytouch-macos
 ```
 
-Each platform package contains both x64 and arm64 binaries. After installation, the correct binary is selected automatically based on the current CPU architecture.
+`@whuanle/easytouch` delegates to the correct platform package on the current host. Each platform package contains both x64 and arm64 binaries, and the correct one is selected automatically based on the current CPU architecture.
 
 On Windows, after installation you will find an executable entry named `et` under `AppData/Roaming/npm`.
 
@@ -76,26 +78,49 @@ npx skills add https://github.com/whuanle/EasyTouch
 
 If you only need EasyTouch for AI tool integration, using skills is usually simpler than configuring MCP manually.
 
-In tools such as Claude and Cursor, MCP configuration is broadly similar. After installing through npm or bun, prefer calling `et` or `npx` directly. If you must reference the real binary inside a platform package, it is located under `bin/x64` or `bin/arm64`. For example, on Windows the directory is `AppData/Roaming/npm/node_modules/easytouch-windows/bin`.
+In tools such as Claude, Cursor, VS Code, and Sidecar, MCP configuration is broadly similar. After installing through npm, prefer calling the global `et` command directly. That gives you one configuration that works across Windows, Linux, and macOS. Only fall back to a full path or `npx` when the host application cannot resolve commands from PATH.
 
 Add the following to your configuration:
 
-**NPM Installation (Recommended)**
+**After Global Installation (Recommended, Same On All Platforms)**
 
-When using `npx`, use the package name for the current platform: `easytouch-windows` on Windows, `easytouch-linux` on Linux, and `easytouch-macos` on macOS.
+First run `npm i -g @whuanle/easytouch`, or install the matching platform package, then use:
+
+```json
+{
+  "mcpServers": {
+    "easytouch": {
+      "command": "et",
+      "args": ["mcp-stdio"]
+    }
+  }
+}
+```
+
+**When The Host App Does Not Use PATH**
+
+- Windows: set `command` to `C:\\Users\\<your-user>\\AppData\\Roaming\\npm\\et.cmd`
+- Linux / macOS: run `npm prefix -g` first, then set `command` to `<prefix>/bin/et`
+
+**Without Global Installation**
+
+If you do not want a global install, you can start the server through `npx`. In that case, use `@whuanle/easytouch` so the package name stays the same across platforms.
+
+- Windows: set `command` to `npx.cmd`
+- Linux / macOS: set `command` to `npx`
 
 ```json
 {
   "mcpServers": {
     "easytouch": {
       "command": "npx",
-      "args": ["-y", "easytouch-windows", "mcp-stdio"]
+      "args": ["-y", "@whuanle/easytouch", "mcp-stdio"]
     }
   }
 }
 ```
 
-> Replace `easytouch-windows` with the package name for the current operating system.
+> In Windows GUI applications, `command` often needs to be written explicitly as `npx.cmd` or `et.cmd` rather than plain `npx`, because some hosts do not resolve `.ps1` / `.cmd` the same way PowerShell does.
 
 ### Platform Notes
 
