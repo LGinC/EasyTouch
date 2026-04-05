@@ -143,24 +143,12 @@ jobs:
           path: dist/npm/${{ matrix.package_name }}
 
       - name: Set up Node.js for npm publish
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
-          node-version: 20
-          registry-url: https://registry.npmjs.org
+          node-version: "24"
 
       - name: Dry-run platform package
         run: npm pack --dry-run ./dist/npm/${{ matrix.package_name }}
-
-      - name: Preflight trusted publishing
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] || [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
-            echo "::error::OIDC token is unavailable. Ensure this job has permissions.id-token: write."
-            exit 1
-          fi
-          echo "::notice::OIDC token is available for trusted publishing."
-          echo "::notice::If publish fails, verify npm Trusted Publisher is configured for package '${{ matrix.package_name }}' and workflow '.github/workflows/release.yml' in this repository."
 
       - name: Publish platform package
         uses: JS-DevTools/npm-publish@v4
@@ -184,27 +172,15 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Set up Node.js for npm publish
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
-          node-version: 20
-          registry-url: https://registry.npmjs.org
+          node-version: "24"
 
       - name: Normalize npm package versions
         run: node scripts/release/set-version.mjs ${{ github.ref_name }}
 
       - name: Dry-run root package
         run: npm pack --dry-run
-
-      - name: Preflight trusted publishing
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] || [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
-            echo "::error::OIDC token is unavailable. Ensure this job has permissions.id-token: write."
-            exit 1
-          fi
-          echo "::notice::OIDC token is available for trusted publishing."
-          echo "::notice::If publish fails, verify npm Trusted Publisher is configured for package 'easytouch' and workflow '.github/workflows/release.yml' in this repository."
 
       - name: Publish root package
         uses: JS-DevTools/npm-publish@v4
