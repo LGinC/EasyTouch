@@ -75,6 +75,18 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !u8 {
         return try emit(output_mode, response, printProcessListText);
     }
 
+    if (std.mem.eql(u8, command, "system") and args.len >= 2 and std.mem.eql(u8, args[1], "hardware-info")) {
+        const output_mode = try readOutputMode(args[2..]);
+        const response = try runtime.systemHardwareInfo(allocator);
+        return try emit(output_mode, response, printHardwareInfoText);
+    }
+
+    if (std.mem.eql(u8, command, "system") and args.len >= 2 and std.mem.eql(u8, args[1], "network-info")) {
+        const output_mode = try readOutputMode(args[2..]);
+        const response = try runtime.systemNetworkInfo(allocator);
+        return try emit(output_mode, response, printNetworkInfoText);
+    }
+
     if (std.mem.eql(u8, command, "mouse") and args.len >= 2 and std.mem.eql(u8, args[1], "position")) {
         const output_mode = try readOutputMode(args[2..]);
         const response = try runtime.mousePosition(allocator);
@@ -101,7 +113,31 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !u8 {
             return try emit(output_mode, response, printAckText);
         };
 
-        const response = try runtime.mouseMove(allocator, x, y);
+        const duration_ms = if (findOptionValue(args[2..], "--duration-ms")) |value|
+            std.fmt.parseInt(u32, value, 10) catch {
+                const response = core.model.failure(core.model.Ack, "mouse.move", core.errors.codes.invalid_args, "Invalid --duration-ms value. Use an integer in range 0..4294967295.", value);
+                return try emit(output_mode, response, printAckText);
+            }
+        else
+            null;
+
+        const jitter_px = if (findOptionValue(args[2..], "--jitter-px")) |value|
+            std.fmt.parseInt(i32, value, 10) catch {
+                const response = core.model.failure(core.model.Ack, "mouse.move", core.errors.codes.invalid_args, "Invalid --jitter-px value. Use a signed 32-bit integer.", value);
+                return try emit(output_mode, response, printAckText);
+            }
+        else
+            null;
+
+        const step_delay_ms = if (findOptionValue(args[2..], "--step-delay-ms")) |value|
+            std.fmt.parseInt(u32, value, 10) catch {
+                const response = core.model.failure(core.model.Ack, "mouse.move", core.errors.codes.invalid_args, "Invalid --step-delay-ms value. Use an integer in range 0..4294967295.", value);
+                return try emit(output_mode, response, printAckText);
+            }
+        else
+            null;
+
+        const response = try runtime.mouseMove(allocator, x, y, duration_ms, jitter_px, step_delay_ms);
         return try emit(output_mode, response, printAckText);
     }
 
@@ -173,6 +209,110 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !u8 {
             return try emit(output_mode, response, printAckText);
         };
         const response = try runtime.windowActivate(allocator, handle);
+        return try emit(output_mode, response, printAckText);
+    }
+
+    if (std.mem.eql(u8, command, "window") and args.len >= 2 and std.mem.eql(u8, args[1], "show")) {
+        const output_mode = try readOutputMode(args[2..]);
+        const handle_value = findOptionValue(args[2..], "--handle") orelse {
+            const response = core.model.failure(core.model.Ack, "window.show", core.errors.codes.invalid_args, "Missing required --handle value.", null);
+            return try emit(output_mode, response, printAckText);
+        };
+        const handle = parseHandleValue(handle_value) catch {
+            const response = core.model.failure(core.model.Ack, "window.show", core.errors.codes.invalid_args, "Invalid --handle value. Use a decimal handle or a 0x-prefixed hex handle.", handle_value);
+            return try emit(output_mode, response, printAckText);
+        };
+        const response = try runtime.windowShow(allocator, handle);
+        return try emit(output_mode, response, printAckText);
+    }
+
+    if (std.mem.eql(u8, command, "window") and args.len >= 2 and std.mem.eql(u8, args[1], "minimize")) {
+        const output_mode = try readOutputMode(args[2..]);
+        const handle_value = findOptionValue(args[2..], "--handle") orelse {
+            const response = core.model.failure(core.model.Ack, "window.minimize", core.errors.codes.invalid_args, "Missing required --handle value.", null);
+            return try emit(output_mode, response, printAckText);
+        };
+        const handle = parseHandleValue(handle_value) catch {
+            const response = core.model.failure(core.model.Ack, "window.minimize", core.errors.codes.invalid_args, "Invalid --handle value. Use a decimal handle or a 0x-prefixed hex handle.", handle_value);
+            return try emit(output_mode, response, printAckText);
+        };
+        const response = try runtime.windowMinimize(allocator, handle);
+        return try emit(output_mode, response, printAckText);
+    }
+
+    if (std.mem.eql(u8, command, "window") and args.len >= 2 and std.mem.eql(u8, args[1], "maximize")) {
+        const output_mode = try readOutputMode(args[2..]);
+        const handle_value = findOptionValue(args[2..], "--handle") orelse {
+            const response = core.model.failure(core.model.Ack, "window.maximize", core.errors.codes.invalid_args, "Missing required --handle value.", null);
+            return try emit(output_mode, response, printAckText);
+        };
+        const handle = parseHandleValue(handle_value) catch {
+            const response = core.model.failure(core.model.Ack, "window.maximize", core.errors.codes.invalid_args, "Invalid --handle value. Use a decimal handle or a 0x-prefixed hex handle.", handle_value);
+            return try emit(output_mode, response, printAckText);
+        };
+        const response = try runtime.windowMaximize(allocator, handle);
+        return try emit(output_mode, response, printAckText);
+    }
+
+    if (std.mem.eql(u8, command, "window") and args.len >= 2 and std.mem.eql(u8, args[1], "restore")) {
+        const output_mode = try readOutputMode(args[2..]);
+        const handle_value = findOptionValue(args[2..], "--handle") orelse {
+            const response = core.model.failure(core.model.Ack, "window.restore", core.errors.codes.invalid_args, "Missing required --handle value.", null);
+            return try emit(output_mode, response, printAckText);
+        };
+        const handle = parseHandleValue(handle_value) catch {
+            const response = core.model.failure(core.model.Ack, "window.restore", core.errors.codes.invalid_args, "Invalid --handle value. Use a decimal handle or a 0x-prefixed hex handle.", handle_value);
+            return try emit(output_mode, response, printAckText);
+        };
+        const response = try runtime.windowRestore(allocator, handle);
+        return try emit(output_mode, response, printAckText);
+    }
+
+    if (std.mem.eql(u8, command, "window") and args.len >= 2 and std.mem.eql(u8, args[1], "move")) {
+        const output_mode = try readOutputMode(args[2..]);
+        const handle_value = findOptionValue(args[2..], "--handle") orelse {
+            const response = core.model.failure(core.model.Ack, "window.move", core.errors.codes.invalid_args, "Missing required --handle value.", null);
+            return try emit(output_mode, response, printAckText);
+        };
+        const x_value = findOptionValue(args[2..], "--x") orelse {
+            const response = core.model.failure(core.model.Ack, "window.move", core.errors.codes.invalid_args, "Missing required --x value.", null);
+            return try emit(output_mode, response, printAckText);
+        };
+        const y_value = findOptionValue(args[2..], "--y") orelse {
+            const response = core.model.failure(core.model.Ack, "window.move", core.errors.codes.invalid_args, "Missing required --y value.", null);
+            return try emit(output_mode, response, printAckText);
+        };
+
+        const handle = parseHandleValue(handle_value) catch {
+            const response = core.model.failure(core.model.Ack, "window.move", core.errors.codes.invalid_args, "Invalid --handle value. Use a decimal handle or a 0x-prefixed hex handle.", handle_value);
+            return try emit(output_mode, response, printAckText);
+        };
+        const x = std.fmt.parseInt(i32, x_value, 10) catch {
+            const response = core.model.failure(core.model.Ack, "window.move", core.errors.codes.invalid_args, "Invalid --x value. Use a signed 32-bit integer.", x_value);
+            return try emit(output_mode, response, printAckText);
+        };
+        const y = std.fmt.parseInt(i32, y_value, 10) catch {
+            const response = core.model.failure(core.model.Ack, "window.move", core.errors.codes.invalid_args, "Invalid --y value. Use a signed 32-bit integer.", y_value);
+            return try emit(output_mode, response, printAckText);
+        };
+
+        const width = if (findOptionValue(args[2..], "--width")) |value|
+            std.fmt.parseInt(i32, value, 10) catch {
+                const response = core.model.failure(core.model.Ack, "window.move", core.errors.codes.invalid_args, "Invalid --width value. Use a signed 32-bit integer.", value);
+                return try emit(output_mode, response, printAckText);
+            }
+        else
+            null;
+
+        const height = if (findOptionValue(args[2..], "--height")) |value|
+            std.fmt.parseInt(i32, value, 10) catch {
+                const response = core.model.failure(core.model.Ack, "window.move", core.errors.codes.invalid_args, "Invalid --height value. Use a signed 32-bit integer.", value);
+                return try emit(output_mode, response, printAckText);
+            }
+        else
+            null;
+
+        const response = try runtime.windowMove(allocator, handle, x, y, width, height);
         return try emit(output_mode, response, printAckText);
     }
 
@@ -248,6 +388,26 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !u8 {
         return try emit(output_mode, response, printClipboardFilesText);
     }
 
+    if (std.mem.eql(u8, command, "clipboard") and args.len >= 2 and std.mem.eql(u8, args[1], "set-files")) {
+        const output_mode = try readOutputMode(args[2..]);
+        const paths = findOptionValue(args[2..], "--paths") orelse {
+            const response = core.model.failure(core.model.Ack, "clipboard.set_files", core.errors.codes.invalid_args, "Missing required --paths value.", null);
+            return try emit(output_mode, response, printAckText);
+        };
+        const response = try runtime.clipboardSetFiles(allocator, paths);
+        return try emit(output_mode, response, printAckText);
+    }
+
+    if (std.mem.eql(u8, command, "clipboard") and args.len >= 2 and std.mem.eql(u8, args[1], "set-image")) {
+        const output_mode = try readOutputMode(args[2..]);
+        const path = findOptionValue(args[2..], "--path") orelse {
+            const response = core.model.failure(core.model.Ack, "clipboard.set_image", core.errors.codes.invalid_args, "Missing required --path value.", null);
+            return try emit(output_mode, response, printAckText);
+        };
+        const response = try runtime.clipboardSetImage(allocator, path);
+        return try emit(output_mode, response, printAckText);
+    }
+
     if (std.mem.eql(u8, command, "keyboard") and args.len >= 2 and std.mem.eql(u8, args[1], "key")) {
         const output_mode = try readOutputMode(args[2..]);
         const key = findOptionValue(args[2..], "--key") orelse {
@@ -278,6 +438,37 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !u8 {
         return try emit(output_mode, response, printAckText);
     }
 
+    if (std.mem.eql(u8, command, "keyboard") and args.len >= 2 and std.mem.eql(u8, args[1], "type-keys")) {
+        const output_mode = try readOutputMode(args[2..]);
+        const text = findOptionValue(args[2..], "--text") orelse {
+            const response = core.model.failure(core.model.Ack, "keyboard.type_keys", core.errors.codes.invalid_args, "Missing required --text value.", null);
+            return try emit(output_mode, response, printAckText);
+        };
+        const key_delay_ms = if (findOptionValue(args[2..], "--key-delay-ms")) |value|
+            std.fmt.parseInt(u32, value, 10) catch {
+                const response = core.model.failure(core.model.Ack, "keyboard.type_keys", core.errors.codes.invalid_args, "Invalid --key-delay-ms value. Use a non-negative 32-bit integer.", value);
+                return try emit(output_mode, response, printAckText);
+            }
+        else
+            null;
+        const response = try runtime.keyboardTypeKeys(allocator, text, key_delay_ms);
+        return try emit(output_mode, response, printAckText);
+    }
+
+    if (std.mem.eql(u8, command, "keyboard") and args.len >= 2 and std.mem.eql(u8, args[1], "ime-switch")) {
+        const output_mode = try readOutputMode(args[2..]);
+        const strategy = findOptionValue(args[2..], "--strategy");
+        const response = try runtime.keyboardImeSwitch(allocator, strategy);
+        return try emit(output_mode, response, printAckText);
+    }
+
+    if (std.mem.eql(u8, command, "keyboard") and args.len >= 2 and std.mem.eql(u8, args[1], "caps-lock")) {
+        const output_mode = try readOutputMode(args[2..]);
+        const state = findOptionValue(args[2..], "--state");
+        const response = try runtime.keyboardCapsLock(allocator, state);
+        return try emit(output_mode, response, printAckText);
+    }
+
     if (std.mem.eql(u8, command, "keyboard") and args.len >= 2 and std.mem.eql(u8, args[1], "paste")) {
         const output_mode = try readOutputMode(args[2..]);
         const expected_title = findOptionValue(args[2..], "--expect-title");
@@ -298,7 +489,29 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !u8 {
             value
         else
             try defaultCapturePath(allocator);
-        const response = try runtime.screenCapture(allocator, path);
+
+        const display_id = if (findOptionValue(args[2..], "--display-id")) |value|
+            std.fmt.parseInt(u32, value, 10) catch {
+                const response = core.model.failure(core.model.ScreenCapture, "screen.capture", core.errors.codes.invalid_args, "Invalid --display-id value. Use a non-negative 32-bit integer.", value);
+                return try emit(output_mode, response, printScreenCaptureText);
+            }
+        else
+            null;
+
+        const window_handle = if (findOptionValue(args[2..], "--window-handle")) |value|
+            parseHandleValue(value) catch {
+                const response = core.model.failure(core.model.ScreenCapture, "screen.capture", core.errors.codes.invalid_args, "Invalid --window-handle value. Use a decimal handle or a 0x-prefixed hex handle.", value);
+                return try emit(output_mode, response, printScreenCaptureText);
+            }
+        else
+            null;
+
+        if (display_id != null and window_handle != null) {
+            const response = core.model.failure(core.model.ScreenCapture, "screen.capture", core.errors.codes.invalid_args, "--display-id and --window-handle cannot be used together.", null);
+            return try emit(output_mode, response, printScreenCaptureText);
+        }
+
+        const response = try runtime.screenCapture(allocator, path, display_id, window_handle);
         return try emit(output_mode, response, printScreenCaptureText);
     }
 
@@ -365,6 +578,31 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !u8 {
         else
             .contains;
         const response = try runtime.waitFocus(allocator, title, timeout_ms, match_mode);
+        return try emit(output_mode, response, printWaitWindowText);
+    }
+
+    if (std.mem.eql(u8, command, "wait") and args.len >= 2 and std.mem.eql(u8, args[1], "activate")) {
+        const output_mode = try readOutputMode(args[2..]);
+        const handle_value = findOptionValue(args[2..], "--handle") orelse {
+            const response = core.model.failure(core.model.WaitWindow, "wait.activate", core.errors.codes.invalid_args, "Missing required --handle value.", null);
+            return try emit(output_mode, response, printWaitWindowText);
+        };
+        const handle = parseHandleValue(handle_value) catch {
+            const response = core.model.failure(core.model.WaitWindow, "wait.activate", core.errors.codes.invalid_args, "Invalid --handle value. Use a decimal handle or a 0x-prefixed hex handle.", handle_value);
+            return try emit(output_mode, response, printWaitWindowText);
+        };
+        const timeout_ms = if (findOptionValue(args[2..], "--timeout-ms")) |value|
+            std.fmt.parseInt(u64, value, 10) catch 2000
+        else
+            2000;
+        const expect_active = if (findOptionValue(args[2..], "--expect-active")) |value|
+            parseBoolValue(value) orelse {
+                const response = core.model.failure(core.model.WaitWindow, "wait.activate", core.errors.codes.invalid_args, "Invalid --expect-active value. Use true or false.", value);
+                return try emit(output_mode, response, printWaitWindowText);
+            }
+        else
+            true;
+        const response = try runtime.waitActivate(allocator, handle, timeout_ms, expect_active);
         return try emit(output_mode, response, printWaitWindowText);
     }
 
@@ -560,6 +798,21 @@ fn printCpuInfoText(response: core.model.CpuInfoResponse) void {
     std.debug.print("- page_size: {d}\n", .{data.page_size});
 }
 
+fn printHardwareInfoText(response: core.model.HardwareInfoResponse) void {
+    if (!response.ok) {
+        printResponseError(response.capability, response.failure);
+        return;
+    }
+    const data = response.data.?;
+    std.debug.print("{s}\n", .{response.capability});
+    std.debug.print("- architecture: {s}\n", .{data.architecture});
+    std.debug.print("- logical_cores: {d}\n", .{data.logical_cores});
+    std.debug.print("- page_size: {d}\n", .{data.page_size});
+    std.debug.print("- total_physical: {d}\n", .{data.total_physical});
+    std.debug.print("- total_virtual: {d}\n", .{data.total_virtual});
+    std.debug.print("- machine_name: {s}\n", .{data.machine_name});
+}
+
 fn printMemoryInfoText(response: core.model.MemoryInfoResponse) void {
     if (!response.ok) {
         printResponseError(response.capability, response.failure);
@@ -600,6 +853,24 @@ fn printProcessListText(response: core.model.ProcessListResponse) void {
     std.debug.print("- count: {d}\n", .{data.count});
     for (data.processes) |process| {
         std.debug.print("  - pid: {d}; name: {s}\n", .{ process.pid, process.name });
+    }
+}
+
+fn printNetworkInfoText(response: core.model.NetworkInfoResponse) void {
+    if (!response.ok) {
+        printResponseError(response.capability, response.failure);
+        return;
+    }
+    const data = response.data.?;
+    std.debug.print("{s}\n", .{response.capability});
+    std.debug.print("- count: {d}\n", .{data.count});
+    for (data.adapters) |adapter| {
+        std.debug.print("  - name: {s}\n", .{adapter.name});
+        std.debug.print("    description: {s}\n", .{adapter.description});
+        std.debug.print("    ipv4: {s}\n", .{adapter.ipv4});
+        std.debug.print("    mac: {s}\n", .{adapter.mac});
+        std.debug.print("    adapter_type: {s}\n", .{adapter.adapter_type});
+        std.debug.print("    dhcp_enabled: {}\n", .{adapter.dhcp_enabled});
     }
 }
 

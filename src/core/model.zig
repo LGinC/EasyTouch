@@ -107,6 +107,15 @@ pub const CpuInfo = struct {
     page_size: u32,
 };
 
+pub const HardwareInfo = struct {
+    architecture: []const u8,
+    logical_cores: u32,
+    page_size: u32,
+    total_physical: u64,
+    total_virtual: u64,
+    machine_name: []const u8,
+};
+
 pub const MemoryInfo = struct {
     total_physical: u64,
     available_physical: u64,
@@ -135,6 +144,20 @@ pub const ProcessInfo = struct {
 pub const ProcessList = struct {
     count: usize,
     processes: []ProcessInfo,
+};
+
+pub const NetworkAdapter = struct {
+    name: []const u8,
+    description: []const u8,
+    ipv4: []const u8,
+    mac: []const u8,
+    adapter_type: []const u8,
+    dhcp_enabled: bool,
+};
+
+pub const NetworkInfo = struct {
+    count: usize,
+    adapters: []NetworkAdapter,
 };
 
 pub const WindowMatch = struct {
@@ -186,9 +209,11 @@ pub const PointResponse = Envelope(Point);
 pub const PixelColorResponse = Envelope(PixelColor);
 pub const DisplayListResponse = Envelope(DisplayList);
 pub const CpuInfoResponse = Envelope(CpuInfo);
+pub const HardwareInfoResponse = Envelope(HardwareInfo);
 pub const MemoryInfoResponse = Envelope(MemoryInfo);
 pub const DiskListResponse = Envelope(DiskList);
 pub const ProcessListResponse = Envelope(ProcessList);
+pub const NetworkInfoResponse = Envelope(NetworkInfo);
 pub const WindowMatchResponse = Envelope(WindowMatch);
 pub const WaitWindowResponse = Envelope(WaitWindow);
 pub const WaitFocusResponse = Envelope(WaitWindow);

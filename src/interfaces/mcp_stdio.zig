@@ -207,6 +207,14 @@ fn handleToolCall(allocator: std.mem.Allocator, stdout: *std.Io.Writer, id: Json
         try writeToolResponse(allocator, stdout, id, try runtime.systemProcessList(allocator));
         return;
     }
+    if (std.mem.eql(u8, tool_name, "system_hardware_info")) {
+        try writeToolResponse(allocator, stdout, id, try runtime.systemHardwareInfo(allocator));
+        return;
+    }
+    if (std.mem.eql(u8, tool_name, "system_network_info")) {
+        try writeToolResponse(allocator, stdout, id, try runtime.systemNetworkInfo(allocator));
+        return;
+    }
     if (std.mem.eql(u8, tool_name, "mouse_position")) {
         try writeToolResponse(allocator, stdout, id, try runtime.mousePosition(allocator));
         return;
@@ -226,7 +234,19 @@ fn handleToolCall(allocator: std.mem.Allocator, stdout: *std.Io.Writer, id: Json
             try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "mouse.move", core.errors.codes.invalid_args, "y is required and must be a signed 32-bit integer.", null));
             return;
         };
-        try writeToolResponse(allocator, stdout, id, try runtime.mouseMove(allocator, x, y));
+        const duration_ms = readOptionalU32(arguments, "duration_ms") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "mouse.move", core.errors.codes.invalid_args, "duration_ms must be a non-negative integer when provided.", null));
+            return;
+        };
+        const jitter_px = readOptionalI32(arguments, "jitter_px") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "mouse.move", core.errors.codes.invalid_args, "jitter_px must be a signed 32-bit integer when provided.", null));
+            return;
+        };
+        const step_delay_ms = readOptionalU32(arguments, "step_delay_ms") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "mouse.move", core.errors.codes.invalid_args, "step_delay_ms must be a non-negative integer when provided.", null));
+            return;
+        };
+        try writeToolResponse(allocator, stdout, id, try runtime.mouseMove(allocator, x, y, duration_ms, jitter_px, step_delay_ms));
         return;
     }
     if (std.mem.eql(u8, tool_name, "mouse_click")) {
@@ -277,6 +297,84 @@ fn handleToolCall(allocator: std.mem.Allocator, stdout: *std.Io.Writer, id: Json
             return;
         };
         try writeToolResponse(allocator, stdout, id, try runtime.windowActivate(allocator, handle));
+        return;
+    }
+    if (std.mem.eql(u8, tool_name, "window_show")) {
+        const handle = (readOptionalU64(arguments, "handle") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "window.show", core.errors.codes.invalid_args, "handle must be a non-negative integer when provided.", null));
+            return;
+        }) orelse {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "window.show", core.errors.codes.invalid_args, "handle is required and must be a non-negative integer.", null));
+            return;
+        };
+        try writeToolResponse(allocator, stdout, id, try runtime.windowShow(allocator, handle));
+        return;
+    }
+    if (std.mem.eql(u8, tool_name, "window_minimize")) {
+        const handle = (readOptionalU64(arguments, "handle") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "window.minimize", core.errors.codes.invalid_args, "handle must be a non-negative integer when provided.", null));
+            return;
+        }) orelse {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "window.minimize", core.errors.codes.invalid_args, "handle is required and must be a non-negative integer.", null));
+            return;
+        };
+        try writeToolResponse(allocator, stdout, id, try runtime.windowMinimize(allocator, handle));
+        return;
+    }
+    if (std.mem.eql(u8, tool_name, "window_maximize")) {
+        const handle = (readOptionalU64(arguments, "handle") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "window.maximize", core.errors.codes.invalid_args, "handle must be a non-negative integer when provided.", null));
+            return;
+        }) orelse {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "window.maximize", core.errors.codes.invalid_args, "handle is required and must be a non-negative integer.", null));
+            return;
+        };
+        try writeToolResponse(allocator, stdout, id, try runtime.windowMaximize(allocator, handle));
+        return;
+    }
+    if (std.mem.eql(u8, tool_name, "window_restore")) {
+        const handle = (readOptionalU64(arguments, "handle") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "window.restore", core.errors.codes.invalid_args, "handle must be a non-negative integer when provided.", null));
+            return;
+        }) orelse {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "window.restore", core.errors.codes.invalid_args, "handle is required and must be a non-negative integer.", null));
+            return;
+        };
+        try writeToolResponse(allocator, stdout, id, try runtime.windowRestore(allocator, handle));
+        return;
+    }
+    if (std.mem.eql(u8, tool_name, "window_move")) {
+        const handle = (readOptionalU64(arguments, "handle") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "window.move", core.errors.codes.invalid_args, "handle must be a non-negative integer when provided.", null));
+            return;
+        }) orelse {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "window.move", core.errors.codes.invalid_args, "handle is required and must be a non-negative integer.", null));
+            return;
+        };
+        const x = (readOptionalI32(arguments, "x") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "window.move", core.errors.codes.invalid_args, "x must be a signed 32-bit integer when provided.", null));
+            return;
+        }) orelse {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "window.move", core.errors.codes.invalid_args, "x is required and must be a signed 32-bit integer.", null));
+            return;
+        };
+        const y = (readOptionalI32(arguments, "y") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "window.move", core.errors.codes.invalid_args, "y must be a signed 32-bit integer when provided.", null));
+            return;
+        }) orelse {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "window.move", core.errors.codes.invalid_args, "y is required and must be a signed 32-bit integer.", null));
+            return;
+        };
+        const width = readOptionalI32(arguments, "width") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "window.move", core.errors.codes.invalid_args, "width must be a signed 32-bit integer when provided.", null));
+            return;
+        };
+        const height = readOptionalI32(arguments, "height") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "window.move", core.errors.codes.invalid_args, "height must be a signed 32-bit integer when provided.", null));
+            return;
+        };
+
+        try writeToolResponse(allocator, stdout, id, try runtime.windowMove(allocator, handle, x, y, width, height));
         return;
     }
     if (std.mem.eql(u8, tool_name, "window_find")) {
@@ -334,6 +432,22 @@ fn handleToolCall(allocator: std.mem.Allocator, stdout: *std.Io.Writer, id: Json
         try writeToolResponse(allocator, stdout, id, try runtime.clipboardGetFiles(allocator));
         return;
     }
+    if (std.mem.eql(u8, tool_name, "clipboard_set_files")) {
+        const paths = readRequiredString(arguments, "paths") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "clipboard.set_files", core.errors.codes.invalid_args, "paths is required and must be a string.", null));
+            return;
+        } orelse unreachable;
+        try writeToolResponse(allocator, stdout, id, try runtime.clipboardSetFiles(allocator, paths));
+        return;
+    }
+    if (std.mem.eql(u8, tool_name, "clipboard_set_image")) {
+        const path = readRequiredString(arguments, "path") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "clipboard.set_image", core.errors.codes.invalid_args, "path is required and must be a string.", null));
+            return;
+        } orelse unreachable;
+        try writeToolResponse(allocator, stdout, id, try runtime.clipboardSetImage(allocator, path));
+        return;
+    }
     if (std.mem.eql(u8, tool_name, "keyboard_key_press")) {
         const key = readRequiredString(arguments, "key") catch {
             try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "keyboard.key_press", core.errors.codes.invalid_args, "key is required and must be a string.", null));
@@ -358,6 +472,34 @@ fn handleToolCall(allocator: std.mem.Allocator, stdout: *std.Io.Writer, id: Json
         try writeToolResponse(allocator, stdout, id, try runtime.keyboardTypeText(allocator, text));
         return;
     }
+    if (std.mem.eql(u8, tool_name, "keyboard_type_keys")) {
+        const text = readRequiredString(arguments, "text") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "keyboard.type_keys", core.errors.codes.invalid_args, "text is required and must be a string.", null));
+            return;
+        } orelse unreachable;
+        const key_delay_ms = readOptionalU32(arguments, "key_delay_ms") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "keyboard.type_keys", core.errors.codes.invalid_args, "key_delay_ms must be a non-negative integer when provided.", null));
+            return;
+        };
+        try writeToolResponse(allocator, stdout, id, try runtime.keyboardTypeKeys(allocator, text, key_delay_ms));
+        return;
+    }
+    if (std.mem.eql(u8, tool_name, "keyboard_ime_switch")) {
+        const strategy = readOptionalString(arguments, "strategy") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "keyboard.ime_switch", core.errors.codes.invalid_args, "strategy must be a string when provided.", null));
+            return;
+        };
+        try writeToolResponse(allocator, stdout, id, try runtime.keyboardImeSwitch(allocator, strategy));
+        return;
+    }
+    if (std.mem.eql(u8, tool_name, "keyboard_caps_lock")) {
+        const state = readOptionalString(arguments, "state") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "keyboard.caps_lock", core.errors.codes.invalid_args, "state must be a string when provided.", null));
+            return;
+        };
+        try writeToolResponse(allocator, stdout, id, try runtime.keyboardCapsLock(allocator, state));
+        return;
+    }
     if (std.mem.eql(u8, tool_name, "keyboard_paste")) {
         const expected_title = readOptionalString(arguments, "expect_title") catch {
             try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "keyboard.paste", core.errors.codes.invalid_args, "expect_title must be a string when provided.", null));
@@ -374,8 +516,21 @@ fn handleToolCall(allocator: std.mem.Allocator, stdout: *std.Io.Writer, id: Json
         const path = (readOptionalString(arguments, "path") catch {
             try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.ScreenCapture, "screen.capture", core.errors.codes.invalid_args, "path must be a string when provided.", null));
             return;
-        }) orelse try std.fmt.allocPrint(allocator, "zig-out/captures/easytouch-mcp-capture.bmp", .{});
-        try writeToolResponse(allocator, stdout, id, try runtime.screenCapture(allocator, path));
+        }) orelse try std.fmt.allocPrint(allocator, "zig-out/captures/easytouch-mcp-capture.png", .{});
+        const display_id = readOptionalU32(arguments, "display_id") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.ScreenCapture, "screen.capture", core.errors.codes.invalid_args, "display_id must be a non-negative 32-bit integer when provided.", null));
+            return;
+        };
+        const window_handle = readOptionalU64(arguments, "window_handle") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.ScreenCapture, "screen.capture", core.errors.codes.invalid_args, "window_handle must be a non-negative integer when provided.", null));
+            return;
+        };
+        if (display_id != null and window_handle != null) {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.ScreenCapture, "screen.capture", core.errors.codes.invalid_args, "display_id and window_handle cannot be used together.", null));
+            return;
+        }
+
+        try writeToolResponse(allocator, stdout, id, try runtime.screenCapture(allocator, path, display_id, window_handle));
         return;
     }
     if (std.mem.eql(u8, tool_name, "screen_pixel_color")) {
@@ -434,6 +589,25 @@ fn handleToolCall(allocator: std.mem.Allocator, stdout: *std.Io.Writer, id: Json
             return;
         } orelse .contains;
         try writeToolResponse(allocator, stdout, id, try runtime.waitFocus(allocator, title, timeout_ms, match_mode));
+        return;
+    }
+    if (std.mem.eql(u8, tool_name, "wait_activate")) {
+        const handle = (readOptionalU64(arguments, "handle") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.WaitWindow, "wait.activate", core.errors.codes.invalid_args, "handle must be a non-negative integer when provided.", null));
+            return;
+        }) orelse {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.WaitWindow, "wait.activate", core.errors.codes.invalid_args, "handle is required and must be a non-negative integer.", null));
+            return;
+        };
+        const timeout_ms = readOptionalU64(arguments, "timeout_ms") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.WaitWindow, "wait.activate", core.errors.codes.invalid_args, "timeout_ms must be a non-negative integer when provided.", null));
+            return;
+        } orelse 2000;
+        const expect_active = readOptionalBool(arguments, "expect_active") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.WaitWindow, "wait.activate", core.errors.codes.invalid_args, "expect_active must be a boolean when provided.", null));
+            return;
+        } orelse true;
+        try writeToolResponse(allocator, stdout, id, try runtime.waitActivate(allocator, handle, timeout_ms, expect_active));
         return;
     }
     if (std.mem.eql(u8, tool_name, "wait_pixel")) {
@@ -651,6 +825,9 @@ fn buildInputSchema(allocator: std.mem.Allocator, tool_name: []const u8) !JsonVa
     if (std.mem.eql(u8, tool_name, "system_cpu_info") or std.mem.eql(u8, tool_name, "system_memory_info") or std.mem.eql(u8, tool_name, "system_disk_list") or std.mem.eql(u8, tool_name, "system_process_list")) {
         return buildSchema(allocator, &.{}, &.{});
     }
+    if (std.mem.eql(u8, tool_name, "system_hardware_info") or std.mem.eql(u8, tool_name, "system_network_info")) {
+        return buildSchema(allocator, &.{}, &.{});
+    }
     if (std.mem.eql(u8, tool_name, "mouse_position")) {
         return buildSchema(allocator, &.{}, &.{});
     }
@@ -658,6 +835,9 @@ fn buildInputSchema(allocator: std.mem.Allocator, tool_name: []const u8) !JsonVa
         return buildSchema(allocator, &.{
             .{ .key = "x", .type_name = "integer", .description = "Target cursor x coordinate on the virtual desktop." },
             .{ .key = "y", .type_name = "integer", .description = "Target cursor y coordinate on the virtual desktop." },
+            .{ .key = "duration_ms", .type_name = "integer", .description = "Optional total move duration in milliseconds. Defaults to 280." },
+            .{ .key = "jitter_px", .type_name = "integer", .description = "Optional jitter amplitude in pixels for human-like wobble. Defaults to 3." },
+            .{ .key = "step_delay_ms", .type_name = "integer", .description = "Optional per-step delay in milliseconds. Defaults to 8." },
         }, &.{ "x", "y" });
     }
     if (std.mem.eql(u8, tool_name, "mouse_click")) {
@@ -684,6 +864,35 @@ fn buildInputSchema(allocator: std.mem.Allocator, tool_name: []const u8) !JsonVa
         return buildSchema(allocator, &.{
             .{ .key = "handle", .type_name = "integer", .description = "Top-level window handle to activate, usually copied from window_list or window_foreground." },
         }, &.{"handle"});
+    }
+    if (std.mem.eql(u8, tool_name, "window_show")) {
+        return buildSchema(allocator, &.{
+            .{ .key = "handle", .type_name = "integer", .description = "Top-level window handle to show and activate." },
+        }, &.{"handle"});
+    }
+    if (std.mem.eql(u8, tool_name, "window_minimize")) {
+        return buildSchema(allocator, &.{
+            .{ .key = "handle", .type_name = "integer", .description = "Top-level window handle to minimize." },
+        }, &.{"handle"});
+    }
+    if (std.mem.eql(u8, tool_name, "window_maximize")) {
+        return buildSchema(allocator, &.{
+            .{ .key = "handle", .type_name = "integer", .description = "Top-level window handle to maximize." },
+        }, &.{"handle"});
+    }
+    if (std.mem.eql(u8, tool_name, "window_restore")) {
+        return buildSchema(allocator, &.{
+            .{ .key = "handle", .type_name = "integer", .description = "Top-level window handle to restore." },
+        }, &.{"handle"});
+    }
+    if (std.mem.eql(u8, tool_name, "window_move")) {
+        return buildSchema(allocator, &.{
+            .{ .key = "handle", .type_name = "integer", .description = "Top-level window handle to move." },
+            .{ .key = "x", .type_name = "integer", .description = "Target left coordinate." },
+            .{ .key = "y", .type_name = "integer", .description = "Target top coordinate." },
+            .{ .key = "width", .type_name = "integer", .description = "Optional target width. Defaults to current width." },
+            .{ .key = "height", .type_name = "integer", .description = "Optional target height. Defaults to current height." },
+        }, &.{ "handle", "x", "y" });
     }
     if (std.mem.eql(u8, tool_name, "window_find")) {
         return buildSchema(allocator, &.{
@@ -714,6 +923,16 @@ fn buildInputSchema(allocator: std.mem.Allocator, tool_name: []const u8) !JsonVa
     if (std.mem.eql(u8, tool_name, "clipboard_get_files")) {
         return buildSchema(allocator, &.{}, &.{});
     }
+    if (std.mem.eql(u8, tool_name, "clipboard_set_files")) {
+        return buildSchema(allocator, &.{
+            .{ .key = "paths", .type_name = "string", .description = "Semicolon-separated file paths to place into clipboard file-drop payload." },
+        }, &.{"paths"});
+    }
+    if (std.mem.eql(u8, tool_name, "clipboard_set_image")) {
+        return buildSchema(allocator, &.{
+            .{ .key = "path", .type_name = "string", .description = "Image file path to load into clipboard bitmap content." },
+        }, &.{"path"});
+    }
     if (std.mem.eql(u8, tool_name, "keyboard_key_press")) {
         return buildSchema(allocator, &.{
             .{ .key = "key", .type_name = "string", .description = "Virtual key name such as A, ENTER, TAB, F5, LEFT." },
@@ -729,6 +948,22 @@ fn buildInputSchema(allocator: std.mem.Allocator, tool_name: []const u8) !JsonVa
             .{ .key = "text", .type_name = "string", .description = "Unicode text to type into the focused control." },
         }, &.{"text"});
     }
+    if (std.mem.eql(u8, tool_name, "keyboard_type_keys")) {
+        return buildSchema(allocator, &.{
+            .{ .key = "text", .type_name = "string", .description = "Text to type by keyboard layout key positions instead of direct Unicode injection." },
+            .{ .key = "key_delay_ms", .type_name = "integer", .description = "Optional delay per typed key in milliseconds. Defaults to 30." },
+        }, &.{"text"});
+    }
+    if (std.mem.eql(u8, tool_name, "keyboard_ime_switch")) {
+        return buildSchema(allocator, &.{
+            .{ .key = "strategy", .type_name = "string", .description = "IME switch shortcut strategy.", .enum_values = &.{ "win-space", "alt-shift", "ctrl-shift" } },
+        }, &.{});
+    }
+    if (std.mem.eql(u8, tool_name, "keyboard_caps_lock")) {
+        return buildSchema(allocator, &.{
+            .{ .key = "state", .type_name = "string", .description = "Target caps lock state.", .enum_values = &.{ "toggle", "on", "off" } },
+        }, &.{});
+    }
     if (std.mem.eql(u8, tool_name, "keyboard_paste")) {
         return buildSchema(allocator, &.{
             .{ .key = "expect_title", .type_name = "string", .description = "Optional foreground title guard for safe Ctrl+V delivery." },
@@ -737,7 +972,9 @@ fn buildInputSchema(allocator: std.mem.Allocator, tool_name: []const u8) !JsonVa
     }
     if (std.mem.eql(u8, tool_name, "screen_capture")) {
         return buildSchema(allocator, &.{
-            .{ .key = "path", .type_name = "string", .description = "Optional BMP output path. Defaults to zig-out/captures/easytouch-mcp-capture.bmp." },
+            .{ .key = "path", .type_name = "string", .description = "Optional PNG output path. Defaults to zig-out/captures/easytouch-mcp-capture.png." },
+            .{ .key = "display_id", .type_name = "integer", .description = "Optional display id from screen_displays. If omitted, captures all displays." },
+            .{ .key = "window_handle", .type_name = "integer", .description = "Optional window handle for capturing a specific window." },
         }, &.{});
     }
     if (std.mem.eql(u8, tool_name, "screen_pixel_color")) {
@@ -763,6 +1000,13 @@ fn buildInputSchema(allocator: std.mem.Allocator, tool_name: []const u8) !JsonVa
             .{ .key = "timeout_ms", .type_name = "integer", .description = "Timeout in milliseconds before returning timeout." },
             .{ .key = "match", .type_name = "string", .description = "How to compare the title text.", .enum_values = &.{ "contains", "exact" } },
         }, &.{"title"});
+    }
+    if (std.mem.eql(u8, tool_name, "wait_activate")) {
+        return buildSchema(allocator, &.{
+            .{ .key = "handle", .type_name = "integer", .description = "Target window handle to monitor activation state." },
+            .{ .key = "timeout_ms", .type_name = "integer", .description = "Timeout in milliseconds before returning timeout." },
+            .{ .key = "expect_active", .type_name = "boolean", .description = "When true wait for activation; when false wait for deactivation." },
+        }, &.{"handle"});
     }
     if (std.mem.eql(u8, tool_name, "wait_pixel")) {
         return buildSchema(allocator, &.{

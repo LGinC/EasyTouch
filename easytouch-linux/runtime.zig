@@ -568,11 +568,19 @@ pub fn systemProcessList(_: std.mem.Allocator) !core.model.ProcessListResponse {
     return core.model.failure(core.model.ProcessList, "system.process_list", core.errors.codes.not_implemented, "Linux process list is planned but not locally verified yet.", "Phase one will target X11 first.");
 }
 
+pub fn systemHardwareInfo(_: std.mem.Allocator) !core.model.HardwareInfoResponse {
+    return core.model.failure(core.model.HardwareInfo, "system.hardware_info", core.errors.codes.not_implemented, "Linux hardware info is planned but not locally verified yet.", "Phase one will target X11 first.");
+}
+
+pub fn systemNetworkInfo(_: std.mem.Allocator) !core.model.NetworkInfoResponse {
+    return core.model.failure(core.model.NetworkInfo, "system.network_info", core.errors.codes.not_implemented, "Linux network info is planned but not locally verified yet.", "Phase one will target X11 first.");
+}
+
 pub fn mousePosition(_: std.mem.Allocator) !core.model.PointResponse {
     return core.model.failure(core.model.Point, "mouse.position", core.errors.codes.not_implemented, "Linux mouse position is planned but not locally verified yet.", "Phase one will target X11 first.");
 }
 
-pub fn mouseMove(_: std.mem.Allocator, _: i32, _: i32) !core.model.AckResponse {
+pub fn mouseMove(_: std.mem.Allocator, _: i32, _: i32, _: ?u32, _: ?i32, _: ?u32) !core.model.AckResponse {
     return core.model.failure(core.model.Ack, "mouse.move", core.errors.codes.not_implemented, "Linux mouse move is planned but not locally verified yet.", "Phase one will target X11 first.");
 }
 
@@ -603,6 +611,26 @@ pub fn windowActivate(allocator: std.mem.Allocator, handle: u64) !core.model.Ack
         return core.model.failure(core.model.Ack, "window.activate", core.errors.codes.not_implemented, "Linux window activation is planned but not locally verified yet.", "Phase one will target X11 first.");
     }
     return x11.windowActivate(allocator, handle);
+}
+
+pub fn windowShow(_: std.mem.Allocator, _: u64) !core.model.AckResponse {
+    return core.model.failure(core.model.Ack, "window.show", core.errors.codes.not_implemented, "Linux window show is planned but not locally verified yet.", "Phase one will target X11 first.");
+}
+
+pub fn windowMinimize(_: std.mem.Allocator, _: u64) !core.model.AckResponse {
+    return core.model.failure(core.model.Ack, "window.minimize", core.errors.codes.not_implemented, "Linux window minimize is planned but not locally verified yet.", "Phase one will target X11 first.");
+}
+
+pub fn windowMaximize(_: std.mem.Allocator, _: u64) !core.model.AckResponse {
+    return core.model.failure(core.model.Ack, "window.maximize", core.errors.codes.not_implemented, "Linux window maximize is planned but not locally verified yet.", "Phase one will target X11 first.");
+}
+
+pub fn windowRestore(_: std.mem.Allocator, _: u64) !core.model.AckResponse {
+    return core.model.failure(core.model.Ack, "window.restore", core.errors.codes.not_implemented, "Linux window restore is planned but not locally verified yet.", "Phase one will target X11 first.");
+}
+
+pub fn windowMove(_: std.mem.Allocator, _: u64, _: i32, _: i32, _: ?i32, _: ?i32) !core.model.AckResponse {
+    return core.model.failure(core.model.Ack, "window.move", core.errors.codes.not_implemented, "Linux window move is planned but not locally verified yet.", "Phase one will target X11 first.");
 }
 
 pub fn windowFind(allocator: std.mem.Allocator, title: []const u8, match_mode: core.model.StringMatchMode, include_hidden: bool, pid: ?u32) !core.model.WindowMatchResponse {
@@ -690,6 +718,14 @@ pub fn clipboardGetFiles(_: std.mem.Allocator) !core.model.ClipboardFilesRespons
     return core.model.failure(core.model.ClipboardFiles, "clipboard.get_files", core.errors.codes.not_implemented, "Linux clipboard file list support is planned but not locally verified yet.", "Phase one will target X11 first.");
 }
 
+pub fn clipboardSetFiles(_: std.mem.Allocator, _: []const u8) !core.model.AckResponse {
+    return core.model.failure(core.model.Ack, "clipboard.set_files", core.errors.codes.not_implemented, "Linux clipboard file-drop write support is planned but not locally verified yet.", "Phase one will target X11 first.");
+}
+
+pub fn clipboardSetImage(_: std.mem.Allocator, _: []const u8) !core.model.AckResponse {
+    return core.model.failure(core.model.Ack, "clipboard.set_image", core.errors.codes.not_implemented, "Linux clipboard image write support is planned but not locally verified yet.", "Phase one will target X11 first.");
+}
+
 pub fn keyboardKeyPress(_: std.mem.Allocator, _: []const u8) !core.model.AckResponse {
     return core.model.failure(core.model.Ack, "keyboard.key_press", core.errors.codes.not_implemented, "Linux key press support is planned but not locally verified yet.", "Phase one will target X11 first.");
 }
@@ -702,13 +738,33 @@ pub fn keyboardTypeText(_: std.mem.Allocator, _: []const u8) !core.model.AckResp
     return core.model.failure(core.model.Ack, "keyboard.type_text", core.errors.codes.not_implemented, "Linux text typing support is planned but not locally verified yet.", "Phase one will target X11 first.");
 }
 
+pub fn keyboardTypeKeys(_: std.mem.Allocator, _: []const u8, _: ?u32) !core.model.AckResponse {
+    return core.model.failure(core.model.Ack, "keyboard.type_keys", core.errors.codes.not_implemented, "Linux keymap typing support is planned but not locally verified yet.", "Phase one will target X11 first.");
+}
+
+pub fn keyboardImeSwitch(_: std.mem.Allocator, _: ?[]const u8) !core.model.AckResponse {
+    return core.model.failure(core.model.Ack, "keyboard.ime_switch", core.errors.codes.not_implemented, "Linux IME switching support is planned but not locally verified yet.", "Phase one will target X11 first.");
+}
+
+pub fn keyboardCapsLock(_: std.mem.Allocator, _: ?[]const u8) !core.model.AckResponse {
+    return core.model.failure(core.model.Ack, "keyboard.caps_lock", core.errors.codes.not_implemented, "Linux caps lock control is planned but not locally verified yet.", "Phase one will target X11 first.");
+}
+
 pub fn keyboardPaste(_: std.mem.Allocator, _: ?[]const u8, _: core.model.StringMatchMode) !core.model.AckResponse {
     return core.model.failure(core.model.Ack, "keyboard.paste", core.errors.codes.not_implemented, "Linux synthetic paste is planned but not locally verified yet.", "Phase one will target X11 first.");
 }
 
-pub fn screenCapture(allocator: std.mem.Allocator, path: []const u8) !core.model.ScreenCaptureResponse {
+pub fn screenCapture(allocator: std.mem.Allocator, path: []const u8, display_id: ?u32, window_handle: ?u64) !core.model.ScreenCaptureResponse {
     if (builtin.os.tag != .linux) {
         return core.model.failure(core.model.ScreenCapture, "screen.capture", core.errors.codes.not_implemented, "Linux screen capture is planned but not locally verified yet.", "Phase one will target X11 first.");
+    }
+
+    if (display_id != null and window_handle != null) {
+        return core.model.failure(core.model.ScreenCapture, "screen.capture", core.errors.codes.invalid_args, "display_id and window_handle cannot be used together.", null);
+    }
+
+    if (display_id != null or window_handle != null) {
+        return core.model.failure(core.model.ScreenCapture, "screen.capture", core.errors.codes.not_implemented, "Linux selective capture by display_id/window_handle is not implemented yet.", "Use default full-desktop capture on Linux for now.");
     }
 
     if (std.fs.path.dirname(path)) |dir_name| {
@@ -880,6 +936,10 @@ pub fn waitWindow(allocator: std.mem.Allocator, title: []const u8, timeout_ms: u
 
 pub fn waitFocus(allocator: std.mem.Allocator, title: []const u8, timeout_ms: u64, match_mode: core.model.StringMatchMode) !core.model.WaitFocusResponse {
     return waitWindow(allocator, title, timeout_ms, match_mode, true);
+}
+
+pub fn waitActivate(_: std.mem.Allocator, _: u64, _: u64, _: bool) !core.model.WaitWindowResponse {
+    return core.model.failure(core.model.WaitWindow, "wait.activate", core.errors.codes.not_implemented, "Linux wait activate support is planned but not locally verified yet.", "Phase one will target X11 first.");
 }
 
 pub fn waitPixel(allocator: std.mem.Allocator, x: i32, y: i32, hex: []const u8, timeout_ms: u64) !core.model.WaitPixelResponse {

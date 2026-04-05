@@ -5,7 +5,9 @@ const core = @import("easytouch_core");
 const BOOL = i32;
 const UINT = u32;
 const DWORD = u32;
+const ULONG = u32;
 const WORD = u16;
+const BYTE = u8;
 const LONG = i32;
 const LPARAM = isize;
 const HANDLE = ?*anyopaque;
@@ -59,6 +61,11 @@ const VK_LEFT: WORD = 0x25;
 const VK_UP: WORD = 0x26;
 const VK_RIGHT: WORD = 0x27;
 const VK_DOWN: WORD = 0x28;
+const VK_CAPITAL: WORD = 0x14;
+const VK_LWIN: WORD = 0x5B;
+const SW_SHOW: i32 = 5;
+const SW_MINIMIZE: i32 = 6;
+const SW_MAXIMIZE: i32 = 3;
 const SW_RESTORE: i32 = 9;
 const SW_SHOWNORMAL: i32 = 1;
 const WM_CLOSE: UINT = 0x0010;
@@ -71,6 +78,15 @@ const DRIVE_REMOTE: UINT = 4;
 const DRIVE_CDROM: UINT = 5;
 const DRIVE_RAMDISK: UINT = 6;
 const TH32CS_SNAPPROCESS: DWORD = 0x0000_0002;
+const ERROR_SUCCESS: DWORD = 0;
+const ERROR_BUFFER_OVERFLOW: DWORD = 111;
+const MAX_ADAPTER_NAME_LENGTH: usize = 256;
+const MAX_ADAPTER_DESCRIPTION_LENGTH: usize = 128;
+const MAX_ADAPTER_ADDRESS_LENGTH: usize = 8;
+const MIB_IF_TYPE_ETHERNET: UINT = 6;
+const MIB_IF_TYPE_PPP: UINT = 23;
+const MIB_IF_TYPE_LOOPBACK: UINT = 24;
+const IF_TYPE_IEEE80211: UINT = 71;
 
 const RECT = extern struct {
     left: LONG,
@@ -82,6 +98,13 @@ const RECT = extern struct {
 const POINT = extern struct {
     x: LONG,
     y: LONG,
+};
+
+const DROPFILES = extern struct {
+    pFiles: DWORD,
+    pt: POINT,
+    fNC: BOOL,
+    fWide: BOOL,
 };
 
 const SYSTEM_INFO = extern struct {
@@ -126,6 +149,42 @@ const PROCESSENTRY32W = extern struct {
     pcPriClassBase: LONG,
     dwFlags: DWORD,
     szExeFile: [MAX_PATH]u16,
+};
+
+const IP_ADDRESS_STRING = extern struct {
+    String: [16]u8,
+};
+
+const IP_MASK_STRING = extern struct {
+    String: [16]u8,
+};
+
+const IP_ADDR_STRING = extern struct {
+    Next: ?*IP_ADDR_STRING,
+    IpAddress: IP_ADDRESS_STRING,
+    IpMask: IP_MASK_STRING,
+    Context: DWORD,
+};
+
+const IP_ADAPTER_INFO = extern struct {
+    Next: ?*IP_ADAPTER_INFO,
+    ComboIndex: DWORD,
+    AdapterName: [MAX_ADAPTER_NAME_LENGTH + 4]u8,
+    Description: [MAX_ADAPTER_DESCRIPTION_LENGTH + 4]u8,
+    AddressLength: UINT,
+    Address: [MAX_ADAPTER_ADDRESS_LENGTH]BYTE,
+    Index: DWORD,
+    Type: UINT,
+    DhcpEnabled: UINT,
+    CurrentIpAddress: ?*IP_ADDR_STRING,
+    IpAddressList: IP_ADDR_STRING,
+    GatewayList: IP_ADDR_STRING,
+    DhcpServer: IP_ADDR_STRING,
+    HaveWins: BOOL,
+    PrimaryWinsServer: IP_ADDR_STRING,
+    SecondaryWinsServer: IP_ADDR_STRING,
+    LeaseObtained: i64,
+    LeaseExpires: i64,
 };
 
 const CLSID = extern struct {
@@ -236,6 +295,7 @@ extern "user32" fn EnumWindows(lpEnumFunc: *const fn (HWND, LPARAM) callconv(.c)
 extern "user32" fn IsWindow(hWnd: HWND) callconv(.c) BOOL;
 extern "user32" fn IsWindowVisible(hWnd: HWND) callconv(.c) BOOL;
 extern "user32" fn IsIconic(hWnd: HWND) callconv(.c) BOOL;
+extern "user32" fn IsZoomed(hWnd: HWND) callconv(.c) BOOL;
 extern "user32" fn GetWindowRect(hWnd: HWND, lpRect: *RECT) callconv(.c) BOOL;
 extern "user32" fn GetWindowTextLengthW(hWnd: HWND) callconv(.c) i32;
 extern "user32" fn GetWindowTextW(hWnd: HWND, lpString: [*:0]u16, nMaxCount: i32) callconv(.c) i32;
@@ -246,6 +306,7 @@ extern "user32" fn SetForegroundWindow(hWnd: HWND) callconv(.c) BOOL;
 extern "user32" fn BringWindowToTop(hWnd: HWND) callconv(.c) BOOL;
 extern "user32" fn ShowWindow(hWnd: HWND, nCmdShow: i32) callconv(.c) BOOL;
 extern "user32" fn PostMessageW(hWnd: HWND, Msg: UINT, wParam: usize, lParam: isize) callconv(.c) BOOL;
+extern "user32" fn MoveWindow(hWnd: HWND, X: i32, Y: i32, nWidth: i32, nHeight: i32, bRepaint: BOOL) callconv(.c) BOOL;
 extern "user32" fn GetCursorPos(lpPoint: *POINT) callconv(.c) BOOL;
 extern "user32" fn SetCursorPos(x: i32, y: i32) callconv(.c) BOOL;
 extern "user32" fn mouse_event(dwFlags: DWORD, dx: DWORD, dy: DWORD, dwData: DWORD, dwExtraInfo: usize) callconv(.c) void;
@@ -256,6 +317,8 @@ extern "user32" fn EmptyClipboard() callconv(.c) BOOL;
 extern "user32" fn GetClipboardData(format: UINT) callconv(.c) HANDLE;
 extern "user32" fn SetClipboardData(uFormat: UINT, hMem: HANDLE) callconv(.c) HANDLE;
 extern "user32" fn IsClipboardFormatAvailable(format: UINT) callconv(.c) BOOL;
+extern "user32" fn GetKeyState(nVirtKey: i32) callconv(.c) i16;
+extern "user32" fn VkKeyScanW(ch: u16) callconv(.c) i16;
 extern "user32" fn SendInput(cInputs: UINT, pInputs: [*]INPUT, cbSize: i32) callconv(.c) UINT;
 extern "user32" fn GetDC(hWnd: HWND) callconv(.c) HDC;
 extern "user32" fn ReleaseDC(hWnd: HWND, hDC: HDC) callconv(.c) i32;
@@ -281,6 +344,7 @@ extern "kernel32" fn GlobalAlloc(uFlags: UINT, dwBytes: usize) callconv(.c) HGLO
 extern "kernel32" fn GlobalLock(hMem: HGLOBAL) callconv(.c) ?*anyopaque;
 extern "kernel32" fn GlobalUnlock(hMem: HGLOBAL) callconv(.c) BOOL;
 extern "kernel32" fn GlobalFree(hMem: HGLOBAL) callconv(.c) HGLOBAL;
+extern "iphlpapi" fn GetAdaptersInfo(pAdapterInfo: ?*IP_ADAPTER_INFO, pOutBufLen: *ULONG) callconv(.c) DWORD;
 
 extern "shell32" fn DragQueryFileW(hDrop: HANDLE, iFile: UINT, lpszFile: ?[*:0]u16, cch: UINT) callconv(.c) UINT;
 extern "shell32" fn ShellExecuteW(hwnd: HWND, lpOperation: [*:0]const u16, lpFile: [*:0]const u16, lpParameters: ?[*:0]const u16, lpDirectory: ?[*:0]const u16, nShowCmd: i32) callconv(.c) HANDLE;
@@ -440,6 +504,85 @@ pub fn systemProcessList(allocator: std.mem.Allocator) !core.model.ProcessListRe
     });
 }
 
+pub fn systemHardwareInfo(allocator: std.mem.Allocator) !core.model.HardwareInfoResponse {
+    var info = std.mem.zeroes(SYSTEM_INFO);
+    GetSystemInfo(&info);
+
+    var memory_status = std.mem.zeroes(MEMORYSTATUSEX);
+    memory_status.dwLength = @sizeOf(MEMORYSTATUSEX);
+    if (GlobalMemoryStatusEx(&memory_status) == 0) {
+        return core.model.failure(core.model.HardwareInfo, "system.hardware_info", core.errors.codes.system_error, "GlobalMemoryStatusEx failed.", try lastErrorDetail(allocator));
+    }
+
+    var machine_name_buffer: [256]u16 = undefined;
+    var machine_name_size: DWORD = machine_name_buffer.len;
+    var machine_name: []const u8 = "unknown-host";
+    if (GetComputerNameW(&machine_name_buffer, &machine_name_size) != 0) {
+        machine_name = try std.unicode.utf16LeToUtf8Alloc(allocator, machine_name_buffer[0..machine_name_size]);
+    }
+
+    return core.model.success("system.hardware_info", core.model.HardwareInfo{
+        .architecture = @tagName(builtin.cpu.arch),
+        .logical_cores = info.dwNumberOfProcessors,
+        .page_size = info.dwPageSize,
+        .total_physical = memory_status.ullTotalPhys,
+        .total_virtual = memory_status.ullTotalVirtual,
+        .machine_name = machine_name,
+    });
+}
+
+pub fn systemNetworkInfo(allocator: std.mem.Allocator) !core.model.NetworkInfoResponse {
+    var out_len: ULONG = @sizeOf(IP_ADAPTER_INFO);
+    var first = std.mem.zeroes(IP_ADAPTER_INFO);
+    var status = GetAdaptersInfo(&first, &out_len);
+
+    var allocated_buffer: ?[]align(@alignOf(IP_ADAPTER_INFO)) u8 = null;
+    defer if (allocated_buffer) |buffer| allocator.free(buffer);
+
+    var head: *IP_ADAPTER_INFO = &first;
+    if (status == ERROR_BUFFER_OVERFLOW) {
+        const buffer = try allocator.alignedAlloc(u8, std.mem.Alignment.fromByteUnits(@alignOf(IP_ADAPTER_INFO)), out_len);
+        allocated_buffer = buffer;
+        head = @ptrCast(buffer.ptr);
+        status = GetAdaptersInfo(head, &out_len);
+    }
+
+    if (status != ERROR_SUCCESS) {
+        return core.model.failure(core.model.NetworkInfo, "system.network_info", core.errors.codes.system_error, "GetAdaptersInfo failed.", try std.fmt.allocPrint(allocator, "iphlpapi_status={d}", .{status}));
+    }
+
+    var adapters = std.ArrayList(core.model.NetworkAdapter).empty;
+    defer adapters.deinit(allocator);
+
+    var current: ?*IP_ADAPTER_INFO = head;
+    while (current) |adapter| : (current = adapter.Next) {
+        const name = try cStringFixedToOwned(allocator, adapter.AdapterName[0..]);
+        const description = try cStringFixedToOwned(allocator, adapter.Description[0..]);
+        var ipv4 = try cStringFixedToOwned(allocator, adapter.IpAddressList.IpAddress.String[0..]);
+        if (std.mem.eql(u8, ipv4, "0.0.0.0")) {
+            ipv4 = try allocator.dupe(u8, "");
+        }
+
+        const address_len = @min(@as(usize, @intCast(adapter.AddressLength)), adapter.Address.len);
+        const mac = try formatMacAddress(allocator, adapter.Address[0..address_len]);
+
+        try adapters.append(allocator, .{
+            .name = name,
+            .description = description,
+            .ipv4 = ipv4,
+            .mac = mac,
+            .adapter_type = adapterTypeLabel(adapter.Type),
+            .dhcp_enabled = adapter.DhcpEnabled != 0,
+        });
+    }
+
+    const owned = try adapters.toOwnedSlice(allocator);
+    return core.model.success("system.network_info", core.model.NetworkInfo{
+        .count = owned.len,
+        .adapters = owned,
+    });
+}
+
 pub fn mousePosition(allocator: std.mem.Allocator) !core.model.PointResponse {
     _ = allocator;
     var point = std.mem.zeroes(POINT);
@@ -453,14 +596,103 @@ pub fn mousePosition(allocator: std.mem.Allocator) !core.model.PointResponse {
     });
 }
 
-pub fn mouseMove(allocator: std.mem.Allocator, x: i32, y: i32) !core.model.AckResponse {
+fn clampI32(value: i32, min_value: i32, max_value: i32) i32 {
+    if (value < min_value) return min_value;
+    if (value > max_value) return max_value;
+    return value;
+}
+
+fn absI32(value: i32) i32 {
+    if (value >= 0) return value;
+    if (value == std.math.minInt(i32)) return std.math.maxInt(i32);
+    return -value;
+}
+
+pub fn mouseMove(allocator: std.mem.Allocator, x: i32, y: i32, duration_ms: ?u32, jitter_px: ?i32, step_delay_ms: ?u32) !core.model.AckResponse {
+    const resolved_duration_ms = duration_ms orelse 280;
+    const resolved_jitter_px = jitter_px orelse 3;
+    const resolved_step_delay_ms = step_delay_ms orelse 8;
+
+    if (resolved_jitter_px < 0 or resolved_jitter_px > 64) {
+        return core.model.failure(core.model.Ack, "mouse.move", core.errors.codes.invalid_args, "jitter_px must be in range 0..64.", null);
+    }
+    if (resolved_duration_ms > 120_000) {
+        return core.model.failure(core.model.Ack, "mouse.move", core.errors.codes.invalid_args, "duration_ms must be <= 120000.", null);
+    }
+    if (resolved_step_delay_ms > 1000) {
+        return core.model.failure(core.model.Ack, "mouse.move", core.errors.codes.invalid_args, "step_delay_ms must be <= 1000.", null);
+    }
+
+    var start = std.mem.zeroes(POINT);
+    if (GetCursorPos(&start) == 0) {
+        return core.model.failure(core.model.Ack, "mouse.move", core.errors.codes.system_error, "GetCursorPos failed before move.", try lastErrorDetail(allocator));
+    }
+
+    const dx = x - start.x;
+    const dy = y - start.y;
+    if (dx == 0 and dy == 0) {
+        return core.model.success("mouse.move", core.model.Ack{
+            .message = "Mouse already at target.",
+            .detail = try std.fmt.allocPrint(allocator, "x={d}; y={d}", .{ x, y }),
+        });
+    }
+
+    const abs_dx = absI32(dx);
+    const abs_dy = absI32(dy);
+    const dominant_axis = if (abs_dx > abs_dy) abs_dx else abs_dy;
+    const distance_steps = clampI32(@divTrunc(dominant_axis, 6), 12, 240);
+    const timing_steps = if (resolved_step_delay_ms == 0)
+        0
+    else
+        @as(i32, @intCast(resolved_duration_ms / resolved_step_delay_ms));
+    const steps = clampI32(if (distance_steps > timing_steps) distance_steps else timing_steps, 12, 240);
+
+    var step_index: i32 = 1;
+    while (step_index <= steps) : (step_index += 1) {
+        const t = @as(f64, @floatFromInt(step_index)) / @as(f64, @floatFromInt(steps));
+        const eased = 1.0 - (1.0 - t) * (1.0 - t);
+
+        const base_xf = @as(f64, @floatFromInt(start.x)) + @as(f64, @floatFromInt(dx)) * eased;
+        const base_yf = @as(f64, @floatFromInt(start.y)) + @as(f64, @floatFromInt(dy)) * eased;
+
+        const wave = t * (std.math.pi * 3.0);
+        const fade = 1.0 - t;
+        const jitter_strength = @as(f64, @floatFromInt(resolved_jitter_px)) * fade;
+
+        const jitter_x = if (resolved_jitter_px == 0 or step_index == steps)
+            0
+        else
+            @as(i32, @intFromFloat(@round(jitter_strength * std.math.sin(wave))));
+        const jitter_y = if (resolved_jitter_px == 0 or step_index == steps)
+            0
+        else
+            @as(i32, @intFromFloat(@round(jitter_strength * std.math.cos(wave * 1.31))));
+
+        const move_x = if (step_index == steps)
+            x
+        else
+            @as(i32, @intFromFloat(@round(base_xf))) + jitter_x;
+        const move_y = if (step_index == steps)
+            y
+        else
+            @as(i32, @intFromFloat(@round(base_yf))) + jitter_y;
+
+        if (SetCursorPos(move_x, move_y) == 0) {
+            return core.model.failure(core.model.Ack, "mouse.move", core.errors.codes.system_error, "SetCursorPos failed during trajectory move.", try lastErrorDetail(allocator));
+        }
+
+        if (resolved_step_delay_ms > 0 and step_index < steps) {
+            std.Thread.sleep(@as(u64, resolved_step_delay_ms) * std.time.ns_per_ms);
+        }
+    }
+
     if (SetCursorPos(x, y) == 0) {
-        return core.model.failure(core.model.Ack, "mouse.move", core.errors.codes.system_error, "SetCursorPos failed.", try lastErrorDetail(allocator));
+        return core.model.failure(core.model.Ack, "mouse.move", core.errors.codes.system_error, "SetCursorPos failed on final target correction.", try lastErrorDetail(allocator));
     }
 
     return core.model.success("mouse.move", core.model.Ack{
-        .message = "Mouse moved.",
-        .detail = try std.fmt.allocPrint(allocator, "x={d}; y={d}", .{ x, y }),
+        .message = "Mouse moved with human-like trajectory.",
+        .detail = try std.fmt.allocPrint(allocator, "x={d}; y={d}; duration_ms={d}; jitter_px={d}; step_delay_ms={d}; steps={d}", .{ x, y, resolved_duration_ms, resolved_jitter_px, resolved_step_delay_ms, steps }),
     });
 }
 
@@ -581,6 +813,121 @@ pub fn keyboardTypeText(allocator: std.mem.Allocator, text: []const u8) !core.mo
     });
 }
 
+pub fn keyboardTypeKeys(allocator: std.mem.Allocator, text: []const u8, key_delay_ms: ?u32) !core.model.AckResponse {
+    const delay_ms = key_delay_ms orelse 30;
+    if (delay_ms > 1000) {
+        return core.model.failure(core.model.Ack, "keyboard.type_keys", core.errors.codes.invalid_args, "key_delay_ms must be <= 1000.", null);
+    }
+
+    const utf16 = try std.unicode.utf8ToUtf16LeAlloc(allocator, text);
+    defer allocator.free(utf16);
+
+    for (utf16) |unit| {
+        if (unit == '\n') {
+            sendKeyTap(VK_RETURN) catch {
+                return core.model.failure(core.model.Ack, "keyboard.type_keys", core.errors.codes.system_error, "SendInput failed while typing ENTER.", try lastErrorDetail(allocator));
+            };
+        } else if (unit == '\t') {
+            sendKeyTap(VK_TAB) catch {
+                return core.model.failure(core.model.Ack, "keyboard.type_keys", core.errors.codes.system_error, "SendInput failed while typing TAB.", try lastErrorDetail(allocator));
+            };
+        } else {
+            const vk_scan = VkKeyScanW(unit);
+            if (vk_scan == -1) {
+                return core.model.failure(core.model.Ack, "keyboard.type_keys", core.errors.codes.invalid_args, "Character cannot be typed by keyboard layout in keymap mode.", try std.fmt.allocPrint(allocator, "utf16=0x{x}", .{unit}));
+            }
+
+            const scan_u16: u16 = @bitCast(vk_scan);
+            const vk: WORD = @intCast(scan_u16 & 0x00FF);
+            const shift_state: u8 = @intCast((scan_u16 >> 8) & 0x00FF);
+
+            sendVkWithShiftState(vk, shift_state) catch {
+                return core.model.failure(core.model.Ack, "keyboard.type_keys", core.errors.codes.system_error, "SendInput failed while typing by keyboard layout.", try lastErrorDetail(allocator));
+            };
+        }
+
+        if (delay_ms > 0) {
+            std.Thread.sleep(@as(u64, delay_ms) * std.time.ns_per_ms);
+        }
+    }
+
+    return core.model.success("keyboard.type_keys", core.model.Ack{
+        .message = "Keymap typing sent.",
+        .detail = try std.fmt.allocPrint(allocator, "utf16_units={d}; key_delay_ms={d}", .{ utf16.len, delay_ms }),
+    });
+}
+
+pub fn keyboardImeSwitch(allocator: std.mem.Allocator, strategy: ?[]const u8) !core.model.AckResponse {
+    const resolved = strategy orelse "win-space";
+
+    if (std.ascii.eqlIgnoreCase(resolved, "win-space")) {
+        sendInputs(&[_]INPUT{
+            keyInput(VK_LWIN, 0),
+            keyInput(VK_SPACE, 0),
+            keyInput(VK_SPACE, KEYEVENTF_KEYUP),
+            keyInput(VK_LWIN, KEYEVENTF_KEYUP),
+        }) catch {
+            return core.model.failure(core.model.Ack, "keyboard.ime_switch", core.errors.codes.system_error, "SendInput failed for win-space strategy.", try lastErrorDetail(allocator));
+        };
+    } else if (std.ascii.eqlIgnoreCase(resolved, "alt-shift")) {
+        sendInputs(&[_]INPUT{
+            keyInput(VK_MENU, 0),
+            keyInput(VK_SHIFT, 0),
+            keyInput(VK_SHIFT, KEYEVENTF_KEYUP),
+            keyInput(VK_MENU, KEYEVENTF_KEYUP),
+        }) catch {
+            return core.model.failure(core.model.Ack, "keyboard.ime_switch", core.errors.codes.system_error, "SendInput failed for alt-shift strategy.", try lastErrorDetail(allocator));
+        };
+    } else if (std.ascii.eqlIgnoreCase(resolved, "ctrl-shift")) {
+        sendInputs(&[_]INPUT{
+            keyInput(VK_CONTROL, 0),
+            keyInput(VK_SHIFT, 0),
+            keyInput(VK_SHIFT, KEYEVENTF_KEYUP),
+            keyInput(VK_CONTROL, KEYEVENTF_KEYUP),
+        }) catch {
+            return core.model.failure(core.model.Ack, "keyboard.ime_switch", core.errors.codes.system_error, "SendInput failed for ctrl-shift strategy.", try lastErrorDetail(allocator));
+        };
+    } else {
+        return core.model.failure(core.model.Ack, "keyboard.ime_switch", core.errors.codes.invalid_args, "Unsupported strategy. Use win-space, alt-shift, or ctrl-shift.", resolved);
+    }
+
+    return core.model.success("keyboard.ime_switch", core.model.Ack{
+        .message = "IME switch shortcut sent.",
+        .detail = try std.fmt.allocPrint(allocator, "strategy={s}", .{resolved}),
+    });
+}
+
+pub fn keyboardCapsLock(allocator: std.mem.Allocator, state: ?[]const u8) !core.model.AckResponse {
+    const resolved = state orelse "toggle";
+    const current_on = (GetKeyState(@as(i32, VK_CAPITAL)) & 0x0001) != 0;
+
+    var target_toggle = false;
+    var target_on = current_on;
+    if (std.ascii.eqlIgnoreCase(resolved, "toggle")) {
+        target_toggle = true;
+        target_on = !current_on;
+    } else if (std.ascii.eqlIgnoreCase(resolved, "on")) {
+        target_toggle = !current_on;
+        target_on = true;
+    } else if (std.ascii.eqlIgnoreCase(resolved, "off")) {
+        target_toggle = current_on;
+        target_on = false;
+    } else {
+        return core.model.failure(core.model.Ack, "keyboard.caps_lock", core.errors.codes.invalid_args, "Unsupported state. Use toggle, on, or off.", resolved);
+    }
+
+    if (target_toggle) {
+        sendKeyTap(VK_CAPITAL) catch {
+            return core.model.failure(core.model.Ack, "keyboard.caps_lock", core.errors.codes.system_error, "SendInput failed while toggling caps lock.", try lastErrorDetail(allocator));
+        };
+    }
+
+    return core.model.success("keyboard.caps_lock", core.model.Ack{
+        .message = "Caps lock state updated.",
+        .detail = try std.fmt.allocPrint(allocator, "requested={s}; active={s}", .{ resolved, if (target_on) "on" else "off" }),
+    });
+}
+
 pub fn windowList(allocator: std.mem.Allocator, include_hidden: bool) !core.model.WindowListResponse {
     var context = EnumContext{
         .allocator = allocator,
@@ -646,6 +993,114 @@ pub fn windowActivate(allocator: std.mem.Allocator, handle: u64) !core.model.Ack
     return core.model.success("window.activate", core.model.Ack{
         .message = "Window activated.",
         .detail = try std.fmt.allocPrint(allocator, "{s}; title={s}", .{ activation_detail, title }),
+    });
+}
+
+pub fn windowShow(allocator: std.mem.Allocator, handle: u64) !core.model.AckResponse {
+    if (handle == 0) {
+        return core.model.failure(core.model.Ack, "window.show", core.errors.codes.invalid_args, "Window operation requires a non-zero handle.", null);
+    }
+    const hwnd: HWND = @ptrFromInt(handle);
+    if (IsWindow(hwnd) == 0) {
+        return core.model.failure(core.model.Ack, "window.show", core.errors.codes.not_found, "The requested window handle is no longer valid.", try std.fmt.allocPrint(allocator, "target_handle=0x{x}", .{handle}));
+    }
+
+    _ = ShowWindow(hwnd, SW_SHOW);
+    const activation_detail = try requestForegroundActivation(allocator, hwnd, handle);
+
+    return core.model.success("window.show", core.model.Ack{
+        .message = "Window shown and activation requested.",
+        .detail = activation_detail,
+    });
+}
+
+pub fn windowMinimize(allocator: std.mem.Allocator, handle: u64) !core.model.AckResponse {
+    if (handle == 0) {
+        return core.model.failure(core.model.Ack, "window.minimize", core.errors.codes.invalid_args, "Window operation requires a non-zero handle.", null);
+    }
+    const hwnd: HWND = @ptrFromInt(handle);
+    if (IsWindow(hwnd) == 0) {
+        return core.model.failure(core.model.Ack, "window.minimize", core.errors.codes.not_found, "The requested window handle is no longer valid.", try std.fmt.allocPrint(allocator, "target_handle=0x{x}", .{handle}));
+    }
+
+    _ = ShowWindow(hwnd, SW_MINIMIZE);
+
+    if (IsIconic(hwnd) == 0) {
+        return core.model.failure(core.model.Ack, "window.minimize", core.errors.codes.system_error, "Window minimize request did not result in iconic state.", try std.fmt.allocPrint(allocator, "target_handle=0x{x}", .{handle}));
+    }
+
+    return core.model.success("window.minimize", core.model.Ack{
+        .message = "Window minimized.",
+        .detail = try std.fmt.allocPrint(allocator, "target_handle=0x{x}", .{handle}),
+    });
+}
+
+pub fn windowMaximize(allocator: std.mem.Allocator, handle: u64) !core.model.AckResponse {
+    if (handle == 0) {
+        return core.model.failure(core.model.Ack, "window.maximize", core.errors.codes.invalid_args, "Window operation requires a non-zero handle.", null);
+    }
+    const hwnd: HWND = @ptrFromInt(handle);
+    if (IsWindow(hwnd) == 0) {
+        return core.model.failure(core.model.Ack, "window.maximize", core.errors.codes.not_found, "The requested window handle is no longer valid.", try std.fmt.allocPrint(allocator, "target_handle=0x{x}", .{handle}));
+    }
+
+    _ = ShowWindow(hwnd, SW_MAXIMIZE);
+
+    if (IsZoomed(hwnd) == 0) {
+        return core.model.failure(core.model.Ack, "window.maximize", core.errors.codes.system_error, "Window maximize request did not result in zoomed state.", try std.fmt.allocPrint(allocator, "target_handle=0x{x}", .{handle}));
+    }
+
+    return core.model.success("window.maximize", core.model.Ack{
+        .message = "Window maximized.",
+        .detail = try std.fmt.allocPrint(allocator, "target_handle=0x{x}", .{handle}),
+    });
+}
+
+pub fn windowRestore(allocator: std.mem.Allocator, handle: u64) !core.model.AckResponse {
+    if (handle == 0) {
+        return core.model.failure(core.model.Ack, "window.restore", core.errors.codes.invalid_args, "Window operation requires a non-zero handle.", null);
+    }
+    const hwnd: HWND = @ptrFromInt(handle);
+    if (IsWindow(hwnd) == 0) {
+        return core.model.failure(core.model.Ack, "window.restore", core.errors.codes.not_found, "The requested window handle is no longer valid.", try std.fmt.allocPrint(allocator, "target_handle=0x{x}", .{handle}));
+    }
+
+    _ = ShowWindow(hwnd, SW_RESTORE);
+
+    return core.model.success("window.restore", core.model.Ack{
+        .message = "Window restore requested.",
+        .detail = try std.fmt.allocPrint(allocator, "target_handle=0x{x}", .{handle}),
+    });
+}
+
+pub fn windowMove(allocator: std.mem.Allocator, handle: u64, x: i32, y: i32, width: ?i32, height: ?i32) !core.model.AckResponse {
+    if (handle == 0) {
+        return core.model.failure(core.model.Ack, "window.move", core.errors.codes.invalid_args, "Window operation requires a non-zero handle.", null);
+    }
+    const hwnd: HWND = @ptrFromInt(handle);
+    if (IsWindow(hwnd) == 0) {
+        return core.model.failure(core.model.Ack, "window.move", core.errors.codes.not_found, "The requested window handle is no longer valid.", try std.fmt.allocPrint(allocator, "target_handle=0x{x}", .{handle}));
+    }
+
+    var rect = std.mem.zeroes(RECT);
+    if (GetWindowRect(hwnd, &rect) == 0) {
+        return core.model.failure(core.model.Ack, "window.move", core.errors.codes.system_error, "GetWindowRect failed while preparing move target.", try lastErrorDetail(allocator));
+    }
+
+    const resolved_width = width orelse (rect.right - rect.left);
+    const resolved_height = height orelse (rect.bottom - rect.top);
+
+    if (resolved_width <= 0 or resolved_height <= 0) {
+        return core.model.failure(core.model.Ack, "window.move", core.errors.codes.invalid_args, "window width and height must be positive.", try std.fmt.allocPrint(allocator, "width={d}; height={d}", .{ resolved_width, resolved_height }));
+    }
+
+    if (MoveWindow(hwnd, x, y, resolved_width, resolved_height, 1) == 0) {
+        return core.model.failure(core.model.Ack, "window.move", core.errors.codes.system_error, "MoveWindow failed.", try lastErrorDetail(allocator));
+    }
+
+    return core.model.success("window.move", core.model.Ack{
+        .message = "Window moved.",
+        .detail = try std.fmt.allocPrint(allocator, "target_handle=0x{x}; x={d}; y={d}; width={d}; height={d}", .{ handle, x, y, resolved_width, resolved_height }),
     });
 }
 
@@ -881,6 +1336,109 @@ pub fn clipboardGetFiles(allocator: std.mem.Allocator) !core.model.ClipboardFile
     return core.model.success("clipboard.get_files", core.model.ClipboardFiles{ .files = owned });
 }
 
+pub fn clipboardSetFiles(allocator: std.mem.Allocator, paths: []const u8) !core.model.AckResponse {
+    var parsed = std.ArrayList([]const u8).empty;
+    defer {
+        for (parsed.items) |item| allocator.free(item);
+        parsed.deinit(allocator);
+    }
+    try parseSemicolonPaths(allocator, paths, &parsed);
+    if (parsed.items.len == 0) {
+        return core.model.failure(core.model.Ack, "clipboard.set_files", core.errors.codes.invalid_args, "paths must contain at least one file path.", null);
+    }
+
+    const wide_payload = try buildHDropWidePayload(allocator, parsed.items);
+    defer allocator.free(wide_payload);
+
+    const bytes = @sizeOf(DROPFILES) + (wide_payload.len * @sizeOf(u16));
+    const memory = GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, bytes);
+    if (memory == null) {
+        return core.model.failure(core.model.Ack, "clipboard.set_files", core.errors.codes.system_error, "GlobalAlloc failed.", try lastErrorDetail(allocator));
+    }
+
+    const locked = GlobalLock(memory) orelse {
+        _ = GlobalFree(memory);
+        return core.model.failure(core.model.Ack, "clipboard.set_files", core.errors.codes.system_error, "GlobalLock failed for file-drop payload.", try lastErrorDetail(allocator));
+    };
+
+    const payload_ptr: [*]u8 = @ptrCast(locked);
+    const dropfiles_ptr: *DROPFILES = @ptrCast(@alignCast(payload_ptr));
+    dropfiles_ptr.* = .{
+        .pFiles = @sizeOf(DROPFILES),
+        .pt = .{ .x = 0, .y = 0 },
+        .fNC = 0,
+        .fWide = 1,
+    };
+
+    const wide_dest: [*]u16 = @ptrCast(@alignCast(payload_ptr + @sizeOf(DROPFILES)));
+    std.mem.copyForwards(u16, wide_dest[0..wide_payload.len], wide_payload);
+    _ = GlobalUnlock(memory);
+
+    if (OpenClipboard(null) == 0) {
+        _ = GlobalFree(memory);
+        return core.model.failure(core.model.Ack, "clipboard.set_files", core.errors.codes.permission_denied, "OpenClipboard failed.", try lastErrorDetail(allocator));
+    }
+    defer _ = CloseClipboard();
+
+    if (EmptyClipboard() == 0) {
+        _ = GlobalFree(memory);
+        return core.model.failure(core.model.Ack, "clipboard.set_files", core.errors.codes.system_error, "EmptyClipboard failed.", try lastErrorDetail(allocator));
+    }
+
+    if (SetClipboardData(CF_HDROP, memory) == null) {
+        _ = GlobalFree(memory);
+        return core.model.failure(core.model.Ack, "clipboard.set_files", core.errors.codes.system_error, "SetClipboardData failed for CF_HDROP.", try lastErrorDetail(allocator));
+    }
+
+    return core.model.success("clipboard.set_files", core.model.Ack{
+        .message = "Clipboard file-drop payload updated.",
+        .detail = try std.fmt.allocPrint(allocator, "count={d}", .{parsed.items.len}),
+    });
+}
+
+pub fn clipboardSetImage(allocator: std.mem.Allocator, path: []const u8) !core.model.AckResponse {
+    if (path.len == 0) {
+        return core.model.failure(core.model.Ack, "clipboard.set_image", core.errors.codes.invalid_args, "path cannot be empty.", null);
+    }
+
+    const escaped = try escapeForSingleQuotedPowerShell(allocator, path);
+    defer allocator.free(escaped);
+    const script = try std.fmt.allocPrint(allocator,
+        "Add-Type -AssemblyName System.Windows.Forms; Add-Type -AssemblyName System.Drawing; $img=[System.Drawing.Image]::FromFile('{s}'); [System.Windows.Forms.Clipboard]::SetImage($img); $img.Dispose()",
+        .{escaped},
+    );
+    defer allocator.free(script);
+
+    var child = std.process.Child.init(&[_][]const u8{ "powershell", "-NoProfile", "-STA", "-Command", script }, allocator);
+    child.stdin_behavior = .Ignore;
+    child.stdout_behavior = .Ignore;
+    child.stderr_behavior = .Pipe;
+
+    child.spawn() catch |err| {
+        return core.model.failure(core.model.Ack, "clipboard.set_image", core.errors.codes.system_error, "Failed to spawn powershell for clipboard image write.", @errorName(err));
+    };
+
+    const term = child.wait() catch |err| {
+        return core.model.failure(core.model.Ack, "clipboard.set_image", core.errors.codes.system_error, "Failed while waiting for powershell image clipboard command.", @errorName(err));
+    };
+
+    switch (term) {
+        .Exited => |code| {
+            if (code != 0) {
+                return core.model.failure(core.model.Ack, "clipboard.set_image", core.errors.codes.system_error, "PowerShell image clipboard command returned non-zero exit code.", try std.fmt.allocPrint(allocator, "exit_code={d}", .{code}));
+            }
+        },
+        else => {
+            return core.model.failure(core.model.Ack, "clipboard.set_image", core.errors.codes.system_error, "PowerShell image clipboard command did not exit normally.", null);
+        },
+    }
+
+    return core.model.success("clipboard.set_image", core.model.Ack{
+        .message = "Clipboard image updated.",
+        .detail = try std.fmt.allocPrint(allocator, "path={s}", .{path}),
+    });
+}
+
 pub fn keyboardPaste(allocator: std.mem.Allocator, expected_title: ?[]const u8, match_mode: core.model.StringMatchMode) !core.model.AckResponse {
     const foreground = GetForegroundWindow() orelse {
         return core.model.failure(core.model.Ack, "keyboard.paste", core.errors.codes.not_found, "No foreground window is available for Ctrl+V.", null);
@@ -912,39 +1470,90 @@ pub fn keyboardPaste(allocator: std.mem.Allocator, expected_title: ?[]const u8, 
     });
 }
 
-pub fn screenCapture(allocator: std.mem.Allocator, path: []const u8) !core.model.ScreenCaptureResponse {
+pub fn screenCapture(allocator: std.mem.Allocator, path: []const u8, display_id: ?u32, window_handle: ?u64) !core.model.ScreenCaptureResponse {
     if (std.fs.path.dirname(path)) |dir_name| {
         try std.fs.cwd().makePath(dir_name);
     }
 
-    const x = GetSystemMetrics(SM_XVIRTUALSCREEN);
-    const y = GetSystemMetrics(SM_YVIRTUALSCREEN);
-    const width = GetSystemMetrics(SM_CXVIRTUALSCREEN);
-    const height = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+    if (display_id != null and window_handle != null) {
+        return core.model.failure(core.model.ScreenCapture, "screen.capture", core.errors.codes.invalid_args, "display_id and window_handle cannot be used together.", null);
+    }
+
+    var capture_rect = std.mem.zeroes(RECT);
+    if (window_handle) |handle| {
+        if (handle == 0) {
+            return core.model.failure(core.model.ScreenCapture, "screen.capture", core.errors.codes.invalid_args, "window_handle must be a non-zero window handle.", null);
+        }
+
+        const hwnd: HWND = @ptrFromInt(handle);
+        if (IsWindow(hwnd) == 0) {
+            return core.model.failure(core.model.ScreenCapture, "screen.capture", core.errors.codes.not_found, "The requested window_handle is not a valid window.", try std.fmt.allocPrint(allocator, "window_handle=0x{x}", .{handle}));
+        }
+
+        if (GetWindowRect(hwnd, &capture_rect) == 0) {
+            return core.model.failure(core.model.ScreenCapture, "screen.capture", core.errors.codes.system_error, "GetWindowRect failed for the requested window_handle.", try lastErrorDetail(allocator));
+        }
+    } else if (display_id) |target_display_id| {
+        const displays_response = try screenDisplays(allocator);
+        if (!displays_response.ok) {
+            const failure = displays_response.failure orelse core.errors.ApiError{ .code = core.errors.codes.system_error, .message = "screen.displays failed while resolving display_id.", .detail = null };
+            return core.model.failure(core.model.ScreenCapture, "screen.capture", failure.code, failure.message, failure.detail);
+        }
+
+        var found = false;
+        for (displays_response.data.?.displays) |display| {
+            if (display.id != target_display_id) continue;
+            capture_rect.left = display.bounds.left;
+            capture_rect.top = display.bounds.top;
+            capture_rect.right = display.bounds.right;
+            capture_rect.bottom = display.bounds.bottom;
+            found = true;
+            break;
+        }
+
+        if (!found) {
+            return core.model.failure(core.model.ScreenCapture, "screen.capture", core.errors.codes.not_found, "display_id was not found in screen.displays.", try std.fmt.allocPrint(allocator, "display_id={d}", .{target_display_id}));
+        }
+    } else {
+        capture_rect.left = GetSystemMetrics(SM_XVIRTUALSCREEN);
+        capture_rect.top = GetSystemMetrics(SM_YVIRTUALSCREEN);
+        capture_rect.right = capture_rect.left + GetSystemMetrics(SM_CXVIRTUALSCREEN);
+        capture_rect.bottom = capture_rect.top + GetSystemMetrics(SM_CYVIRTUALSCREEN);
+    }
+
+    return captureRectToPng(allocator, "screen.capture", path, capture_rect);
+}
+
+fn captureRectToPng(allocator: std.mem.Allocator, capability: []const u8, path: []const u8, rect: RECT) !core.model.ScreenCaptureResponse {
+    const x = rect.left;
+    const y = rect.top;
+    const width = rect.right - rect.left;
+    const height = rect.bottom - rect.top;
+
     if (width <= 0 or height <= 0) {
-        return core.model.failure(core.model.ScreenCapture, "screen.capture", core.errors.codes.system_error, "GetSystemMetrics returned an invalid desktop size.", null);
+        return core.model.failure(core.model.ScreenCapture, capability, core.errors.codes.system_error, "Capture target rectangle is invalid.", try std.fmt.allocPrint(allocator, "left={d}; top={d}; right={d}; bottom={d}", .{ rect.left, rect.top, rect.right, rect.bottom }));
     }
 
     const screen_dc = GetDC(null);
     if (screen_dc == null) {
-        return core.model.failure(core.model.ScreenCapture, "screen.capture", core.errors.codes.system_error, "GetDC failed.", try lastErrorDetail(allocator));
+        return core.model.failure(core.model.ScreenCapture, capability, core.errors.codes.system_error, "GetDC failed.", try lastErrorDetail(allocator));
     }
     defer _ = ReleaseDC(null, screen_dc);
 
     const memory_dc = CreateCompatibleDC(screen_dc);
     if (memory_dc == null) {
-        return core.model.failure(core.model.ScreenCapture, "screen.capture", core.errors.codes.system_error, "CreateCompatibleDC failed.", try lastErrorDetail(allocator));
+        return core.model.failure(core.model.ScreenCapture, capability, core.errors.codes.system_error, "CreateCompatibleDC failed.", try lastErrorDetail(allocator));
     }
     defer _ = DeleteDC(memory_dc);
 
     const bitmap = CreateCompatibleBitmap(screen_dc, width, height);
     if (bitmap == null) {
-        return core.model.failure(core.model.ScreenCapture, "screen.capture", core.errors.codes.system_error, "CreateCompatibleBitmap failed.", try lastErrorDetail(allocator));
+        return core.model.failure(core.model.ScreenCapture, capability, core.errors.codes.system_error, "CreateCompatibleBitmap failed.", try lastErrorDetail(allocator));
     }
     defer _ = DeleteObject(bitmap);
 
     const old_object = SelectObject(memory_dc, bitmap) orelse {
-        return core.model.failure(core.model.ScreenCapture, "screen.capture", core.errors.codes.system_error, "SelectObject failed.", try lastErrorDetail(allocator));
+        return core.model.failure(core.model.ScreenCapture, capability, core.errors.codes.system_error, "SelectObject failed.", try lastErrorDetail(allocator));
     };
     var bitmap_selected = true;
     defer if (bitmap_selected) {
@@ -952,7 +1561,7 @@ pub fn screenCapture(allocator: std.mem.Allocator, path: []const u8) !core.model
     };
 
     if (BitBlt(memory_dc, 0, 0, width, height, screen_dc, x, y, SRCCOPY) == 0) {
-        return core.model.failure(core.model.ScreenCapture, "screen.capture", core.errors.codes.system_error, "BitBlt failed.", try lastErrorDetail(allocator));
+        return core.model.failure(core.model.ScreenCapture, capability, core.errors.codes.system_error, "BitBlt failed.", try lastErrorDetail(allocator));
     }
 
     _ = SelectObject(memory_dc, old_object);
@@ -960,10 +1569,10 @@ pub fn screenCapture(allocator: std.mem.Allocator, path: []const u8) !core.model
 
     writePngFromBitmap(allocator, path, bitmap) catch |err| {
         const detail = try std.fmt.allocPrint(allocator, "png_encode_error={s}", .{@errorName(err)});
-        return core.model.failure(core.model.ScreenCapture, "screen.capture", core.errors.codes.system_error, "Failed to encode screenshot as PNG.", detail);
+        return core.model.failure(core.model.ScreenCapture, capability, core.errors.codes.system_error, "Failed to encode screenshot as PNG.", detail);
     };
 
-    return core.model.success("screen.capture", core.model.ScreenCapture{
+    return core.model.success(capability, core.model.ScreenCapture{
         .path = path,
         .width = width,
         .height = height,
@@ -1087,6 +1696,39 @@ pub fn waitWindow(allocator: std.mem.Allocator, title: []const u8, timeout_ms: u
 
 pub fn waitFocus(allocator: std.mem.Allocator, title: []const u8, timeout_ms: u64, match_mode: core.model.StringMatchMode) !core.model.WaitFocusResponse {
     return waitWindow(allocator, title, timeout_ms, match_mode, true);
+}
+
+pub fn waitActivate(allocator: std.mem.Allocator, handle: u64, timeout_ms: u64, expect_active: bool) !core.model.WaitWindowResponse {
+    if (handle == 0) {
+        return core.model.failure(core.model.WaitWindow, "wait.activate", core.errors.codes.invalid_args, "handle must be non-zero.", null);
+    }
+
+    const start_ms = nowMs();
+    while (true) {
+        const foreground = GetForegroundWindow();
+        const active = if (foreground) |fg| @intFromPtr(fg) == handle else false;
+
+        if (active == expect_active) {
+            const elapsed_ms = nowMs() - start_ms;
+            var window: ?core.model.WindowInfo = null;
+
+            if (foreground) |fg| {
+                window = try buildWindowInfo(allocator, fg, fg);
+            }
+
+            return core.model.success("wait.activate", core.model.WaitWindow{
+                .matched = true,
+                .elapsed_ms = elapsed_ms,
+                .window = window,
+            });
+        }
+
+        if (nowMs() - start_ms >= timeout_ms) {
+            return core.model.failure(core.model.WaitWindow, "wait.activate", core.errors.codes.timeout, "Timed out while waiting for window activation state.", try std.fmt.allocPrint(allocator, "target_handle=0x{x}; expect_active={s}", .{ handle, if (expect_active) "true" else "false" }));
+        }
+
+        std.Thread.sleep(100 * std.time.ns_per_ms);
+    }
 }
 
 pub fn waitPixel(allocator: std.mem.Allocator, x: i32, y: i32, hex: []const u8, timeout_ms: u64) !core.model.WaitPixelResponse {
@@ -1375,6 +2017,8 @@ fn parseVirtualKey(key: []const u8) ?WORD {
     if (std.ascii.eqlIgnoreCase(key, "ctrl") or std.ascii.eqlIgnoreCase(key, "control")) return VK_CONTROL;
     if (std.ascii.eqlIgnoreCase(key, "shift")) return VK_SHIFT;
     if (std.ascii.eqlIgnoreCase(key, "alt")) return VK_MENU;
+    if (std.ascii.eqlIgnoreCase(key, "caps") or std.ascii.eqlIgnoreCase(key, "capslock")) return VK_CAPITAL;
+    if (std.ascii.eqlIgnoreCase(key, "win") or std.ascii.eqlIgnoreCase(key, "lwin")) return VK_LWIN;
     if (std.ascii.eqlIgnoreCase(key, "enter") or std.ascii.eqlIgnoreCase(key, "return")) return VK_RETURN;
     if (std.ascii.eqlIgnoreCase(key, "esc") or std.ascii.eqlIgnoreCase(key, "escape")) return VK_ESCAPE;
     if (std.ascii.eqlIgnoreCase(key, "space")) return VK_SPACE;
@@ -1414,10 +2058,106 @@ fn sendInputs(inputs: []const INPUT) !void {
     }
 }
 
+fn sendKeyTap(key: WORD) !void {
+    try sendInputs(&[_]INPUT{
+        keyInput(key, 0),
+        keyInput(key, KEYEVENTF_KEYUP),
+    });
+}
+
+fn sendVkWithShiftState(vk: WORD, shift_state: u8) !void {
+    var inputs = std.ArrayList(INPUT).empty;
+    defer inputs.deinit(std.heap.page_allocator);
+
+    if ((shift_state & 1) != 0) try inputs.append(std.heap.page_allocator, keyInput(VK_SHIFT, 0));
+    if ((shift_state & 2) != 0) try inputs.append(std.heap.page_allocator, keyInput(VK_CONTROL, 0));
+    if ((shift_state & 4) != 0) try inputs.append(std.heap.page_allocator, keyInput(VK_MENU, 0));
+
+    try inputs.append(std.heap.page_allocator, keyInput(vk, 0));
+    try inputs.append(std.heap.page_allocator, keyInput(vk, KEYEVENTF_KEYUP));
+
+    if ((shift_state & 4) != 0) try inputs.append(std.heap.page_allocator, keyInput(VK_MENU, KEYEVENTF_KEYUP));
+    if ((shift_state & 2) != 0) try inputs.append(std.heap.page_allocator, keyInput(VK_CONTROL, KEYEVENTF_KEYUP));
+    if ((shift_state & 1) != 0) try inputs.append(std.heap.page_allocator, keyInput(VK_SHIFT, KEYEVENTF_KEYUP));
+
+    try sendInputs(inputs.items);
+}
+
 fn utf16FixedToUtf8(allocator: std.mem.Allocator, values: []const u16) ![]const u8 {
     var len: usize = 0;
     while (len < values.len and values[len] != 0) : (len += 1) {}
     return std.unicode.utf16LeToUtf8Alloc(allocator, values[0..len]);
+}
+
+fn cStringFixedToOwned(allocator: std.mem.Allocator, values: []const u8) ![]const u8 {
+    var len: usize = 0;
+    while (len < values.len and values[len] != 0) : (len += 1) {}
+    return allocator.dupe(u8, values[0..len]);
+}
+
+fn parseSemicolonPaths(allocator: std.mem.Allocator, raw: []const u8, output: *std.ArrayList([]const u8)) !void {
+    var iter = std.mem.splitScalar(u8, raw, ';');
+    while (iter.next()) |token_raw| {
+        const token = std.mem.trim(u8, token_raw, " \t\r\n");
+        if (token.len == 0) continue;
+        try output.append(allocator, try allocator.dupe(u8, token));
+    }
+}
+
+fn buildHDropWidePayload(allocator: std.mem.Allocator, paths: []const []const u8) ![]u16 {
+    var out = std.ArrayList(u16).empty;
+    defer out.deinit(allocator);
+
+    for (paths) |path| {
+        const wide = try std.unicode.utf8ToUtf16LeAlloc(allocator, path);
+        defer allocator.free(wide);
+        try out.appendSlice(allocator, wide);
+        try out.append(allocator, 0);
+    }
+    try out.append(allocator, 0);
+
+    return out.toOwnedSlice(allocator);
+}
+
+fn escapeForSingleQuotedPowerShell(allocator: std.mem.Allocator, value: []const u8) ![]const u8 {
+    var out = std.ArrayList(u8).empty;
+    defer out.deinit(allocator);
+
+    for (value) |ch| {
+        if (ch == '\'') {
+            try out.appendSlice(allocator, "''");
+        } else {
+            try out.append(allocator, ch);
+        }
+    }
+
+    return out.toOwnedSlice(allocator);
+}
+
+fn formatMacAddress(allocator: std.mem.Allocator, bytes: []const u8) ![]const u8 {
+    if (bytes.len == 0) return allocator.dupe(u8, "");
+
+    var out = std.ArrayList(u8).empty;
+    defer out.deinit(allocator);
+
+    for (bytes, 0..) |value, index| {
+        if (index != 0) try out.append(allocator, ':');
+        var chunk: [2]u8 = undefined;
+        _ = try std.fmt.bufPrint(&chunk, "{X:0>2}", .{value});
+        try out.appendSlice(allocator, &chunk);
+    }
+
+    return out.toOwnedSlice(allocator);
+}
+
+fn adapterTypeLabel(kind: UINT) []const u8 {
+    return switch (kind) {
+        MIB_IF_TYPE_ETHERNET => "ethernet",
+        IF_TYPE_IEEE80211 => "wifi",
+        MIB_IF_TYPE_PPP => "ppp",
+        MIB_IF_TYPE_LOOPBACK => "loopback",
+        else => "other",
+    };
 }
 
 fn driveTypeLabel(kind: UINT) []const u8 {

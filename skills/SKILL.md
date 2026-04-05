@@ -47,8 +47,10 @@ zig build
 - system memory-info
 - system disk-list
 - system process-list
+- system hardware-info
+- system network-info
 - mouse position
-- mouse move --x <x> --y <y>
+- mouse move --x <x> --y <y> [--duration-ms <ms>] [--jitter-px <px>] [--step-delay-ms <ms>]
 - mouse click [--button <left|right|middle>] [--count <n>]
 - mouse scroll --delta <amount>
 - window list [--include-hidden] [--pid <pid>]
@@ -60,18 +62,28 @@ zig build
 - clipboard get-text
 - clipboard set-text --text <value>
 - clipboard get-files
+- clipboard set-files --paths <path1;path2;...>
+- clipboard set-image --path <image-file>
 - keyboard key --key <name>
 - keyboard hotkey --keys <combo>
 - keyboard type --text <value>
+- keyboard type-keys --text <value> [--key-delay-ms <ms>]
+- keyboard ime-switch [--strategy <win-space|alt-shift|ctrl-shift>]
+- keyboard caps-lock [--state <toggle|on|off>]
 - keyboard paste [--expect-title <text>] [--match <contains|exact>]
 - screen displays
 - screen pixel-color --x <x> --y <y>
 - screen capture [--path <file>]
 - wait window --title <text> [--timeout-ms <ms>] [--match <contains|exact>] [--foreground-only]
 - wait focus --title <text> [--timeout-ms <ms>] [--match <contains|exact>]
+- wait activate --handle <handle> [--expect-active <true|false>] [--timeout-ms <ms>]
 - wait pixel --x <x> --y <y> --hex <RRGGBB> [--timeout-ms <ms>]
 - wait clipboard [--expect-text <value>] [--timeout-ms <ms>] [--match <contains|exact>]
 - wait process [--name <text>|--pid <pid>] [--expect-running <true|false>] [--timeout-ms <ms>] [--match <contains|exact>]
+
+等待器说明：
+- wait 系列用于“动作后确认状态”，避免页面/窗口未就绪就继续执行下一步。
+- 典型场景：点击后等待窗口出现、切换后等待焦点、输入后等待像素或剪贴板变化、启动后等待进程状态。
 
 ## 4. MCP 接入
 

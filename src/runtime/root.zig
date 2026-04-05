@@ -50,6 +50,24 @@ pub fn systemProcessList(allocator: std.mem.Allocator) !core.model.ProcessListRe
     };
 }
 
+pub fn systemHardwareInfo(allocator: std.mem.Allocator) !core.model.HardwareInfoResponse {
+    return switch (builtin.os.tag) {
+        .windows => windows.runtime.systemHardwareInfo(allocator),
+        .linux => linux.runtime.systemHardwareInfo(allocator),
+        .macos => mac.runtime.systemHardwareInfo(allocator),
+        else => core.model.failure(core.model.HardwareInfo, "system.hardware_info", core.errors.codes.unsupported_host, "This host OS is outside the current EasyTouch support matrix.", null),
+    };
+}
+
+pub fn systemNetworkInfo(allocator: std.mem.Allocator) !core.model.NetworkInfoResponse {
+    return switch (builtin.os.tag) {
+        .windows => windows.runtime.systemNetworkInfo(allocator),
+        .linux => linux.runtime.systemNetworkInfo(allocator),
+        .macos => mac.runtime.systemNetworkInfo(allocator),
+        else => core.model.failure(core.model.NetworkInfo, "system.network_info", core.errors.codes.unsupported_host, "This host OS is outside the current EasyTouch support matrix.", null),
+    };
+}
+
 pub fn mousePosition(allocator: std.mem.Allocator) !core.model.PointResponse {
     return switch (builtin.os.tag) {
         .windows => windows.runtime.mousePosition(allocator),
@@ -59,11 +77,11 @@ pub fn mousePosition(allocator: std.mem.Allocator) !core.model.PointResponse {
     };
 }
 
-pub fn mouseMove(allocator: std.mem.Allocator, x: i32, y: i32) !core.model.AckResponse {
+pub fn mouseMove(allocator: std.mem.Allocator, x: i32, y: i32, duration_ms: ?u32, jitter_px: ?i32, step_delay_ms: ?u32) !core.model.AckResponse {
     return switch (builtin.os.tag) {
-        .windows => windows.runtime.mouseMove(allocator, x, y),
-        .linux => linux.runtime.mouseMove(allocator, x, y),
-        .macos => mac.runtime.mouseMove(allocator, x, y),
+        .windows => windows.runtime.mouseMove(allocator, x, y, duration_ms, jitter_px, step_delay_ms),
+        .linux => linux.runtime.mouseMove(allocator, x, y, duration_ms, jitter_px, step_delay_ms),
+        .macos => mac.runtime.mouseMove(allocator, x, y, duration_ms, jitter_px, step_delay_ms),
         else => core.model.failure(core.model.Ack, "mouse.move", core.errors.codes.unsupported_host, "This host OS is outside the current EasyTouch support matrix.", null),
     };
 }
@@ -129,6 +147,51 @@ pub fn windowActivate(allocator: std.mem.Allocator, handle: u64) !core.model.Ack
     };
 }
 
+pub fn windowShow(allocator: std.mem.Allocator, handle: u64) !core.model.AckResponse {
+    return switch (builtin.os.tag) {
+        .windows => windows.runtime.windowShow(allocator, handle),
+        .linux => linux.runtime.windowShow(allocator, handle),
+        .macos => mac.runtime.windowShow(allocator, handle),
+        else => core.model.failure(core.model.Ack, "window.show", core.errors.codes.unsupported_host, "This host OS is outside the current EasyTouch support matrix.", null),
+    };
+}
+
+pub fn windowMinimize(allocator: std.mem.Allocator, handle: u64) !core.model.AckResponse {
+    return switch (builtin.os.tag) {
+        .windows => windows.runtime.windowMinimize(allocator, handle),
+        .linux => linux.runtime.windowMinimize(allocator, handle),
+        .macos => mac.runtime.windowMinimize(allocator, handle),
+        else => core.model.failure(core.model.Ack, "window.minimize", core.errors.codes.unsupported_host, "This host OS is outside the current EasyTouch support matrix.", null),
+    };
+}
+
+pub fn windowMaximize(allocator: std.mem.Allocator, handle: u64) !core.model.AckResponse {
+    return switch (builtin.os.tag) {
+        .windows => windows.runtime.windowMaximize(allocator, handle),
+        .linux => linux.runtime.windowMaximize(allocator, handle),
+        .macos => mac.runtime.windowMaximize(allocator, handle),
+        else => core.model.failure(core.model.Ack, "window.maximize", core.errors.codes.unsupported_host, "This host OS is outside the current EasyTouch support matrix.", null),
+    };
+}
+
+pub fn windowRestore(allocator: std.mem.Allocator, handle: u64) !core.model.AckResponse {
+    return switch (builtin.os.tag) {
+        .windows => windows.runtime.windowRestore(allocator, handle),
+        .linux => linux.runtime.windowRestore(allocator, handle),
+        .macos => mac.runtime.windowRestore(allocator, handle),
+        else => core.model.failure(core.model.Ack, "window.restore", core.errors.codes.unsupported_host, "This host OS is outside the current EasyTouch support matrix.", null),
+    };
+}
+
+pub fn windowMove(allocator: std.mem.Allocator, handle: u64, x: i32, y: i32, width: ?i32, height: ?i32) !core.model.AckResponse {
+    return switch (builtin.os.tag) {
+        .windows => windows.runtime.windowMove(allocator, handle, x, y, width, height),
+        .linux => linux.runtime.windowMove(allocator, handle, x, y, width, height),
+        .macos => mac.runtime.windowMove(allocator, handle, x, y, width, height),
+        else => core.model.failure(core.model.Ack, "window.move", core.errors.codes.unsupported_host, "This host OS is outside the current EasyTouch support matrix.", null),
+    };
+}
+
 pub fn windowFind(allocator: std.mem.Allocator, title: []const u8, match_mode: core.model.StringMatchMode, include_hidden: bool, pid: ?u32) !core.model.WindowMatchResponse {
     return switch (builtin.os.tag) {
         .windows => windows.runtime.windowFind(allocator, title, match_mode, include_hidden, pid),
@@ -183,6 +246,24 @@ pub fn clipboardGetFiles(allocator: std.mem.Allocator) !core.model.ClipboardFile
     };
 }
 
+pub fn clipboardSetFiles(allocator: std.mem.Allocator, paths: []const u8) !core.model.AckResponse {
+    return switch (builtin.os.tag) {
+        .windows => windows.runtime.clipboardSetFiles(allocator, paths),
+        .linux => linux.runtime.clipboardSetFiles(allocator, paths),
+        .macos => mac.runtime.clipboardSetFiles(allocator, paths),
+        else => core.model.failure(core.model.Ack, "clipboard.set_files", core.errors.codes.unsupported_host, "This host OS is outside the current EasyTouch support matrix.", null),
+    };
+}
+
+pub fn clipboardSetImage(allocator: std.mem.Allocator, path: []const u8) !core.model.AckResponse {
+    return switch (builtin.os.tag) {
+        .windows => windows.runtime.clipboardSetImage(allocator, path),
+        .linux => linux.runtime.clipboardSetImage(allocator, path),
+        .macos => mac.runtime.clipboardSetImage(allocator, path),
+        else => core.model.failure(core.model.Ack, "clipboard.set_image", core.errors.codes.unsupported_host, "This host OS is outside the current EasyTouch support matrix.", null),
+    };
+}
+
 pub fn keyboardKeyPress(allocator: std.mem.Allocator, key: []const u8) !core.model.AckResponse {
     return switch (builtin.os.tag) {
         .windows => windows.runtime.keyboardKeyPress(allocator, key),
@@ -210,6 +291,33 @@ pub fn keyboardTypeText(allocator: std.mem.Allocator, text: []const u8) !core.mo
     };
 }
 
+pub fn keyboardTypeKeys(allocator: std.mem.Allocator, text: []const u8, key_delay_ms: ?u32) !core.model.AckResponse {
+    return switch (builtin.os.tag) {
+        .windows => windows.runtime.keyboardTypeKeys(allocator, text, key_delay_ms),
+        .linux => linux.runtime.keyboardTypeKeys(allocator, text, key_delay_ms),
+        .macos => mac.runtime.keyboardTypeKeys(allocator, text, key_delay_ms),
+        else => core.model.failure(core.model.Ack, "keyboard.type_keys", core.errors.codes.unsupported_host, "This host OS is outside the current EasyTouch support matrix.", null),
+    };
+}
+
+pub fn keyboardImeSwitch(allocator: std.mem.Allocator, strategy: ?[]const u8) !core.model.AckResponse {
+    return switch (builtin.os.tag) {
+        .windows => windows.runtime.keyboardImeSwitch(allocator, strategy),
+        .linux => linux.runtime.keyboardImeSwitch(allocator, strategy),
+        .macos => mac.runtime.keyboardImeSwitch(allocator, strategy),
+        else => core.model.failure(core.model.Ack, "keyboard.ime_switch", core.errors.codes.unsupported_host, "This host OS is outside the current EasyTouch support matrix.", null),
+    };
+}
+
+pub fn keyboardCapsLock(allocator: std.mem.Allocator, state: ?[]const u8) !core.model.AckResponse {
+    return switch (builtin.os.tag) {
+        .windows => windows.runtime.keyboardCapsLock(allocator, state),
+        .linux => linux.runtime.keyboardCapsLock(allocator, state),
+        .macos => mac.runtime.keyboardCapsLock(allocator, state),
+        else => core.model.failure(core.model.Ack, "keyboard.caps_lock", core.errors.codes.unsupported_host, "This host OS is outside the current EasyTouch support matrix.", null),
+    };
+}
+
 pub fn keyboardPaste(allocator: std.mem.Allocator, expected_title: ?[]const u8, match_mode: core.model.StringMatchMode) !core.model.AckResponse {
     return switch (builtin.os.tag) {
         .windows => windows.runtime.keyboardPaste(allocator, expected_title, match_mode),
@@ -219,11 +327,11 @@ pub fn keyboardPaste(allocator: std.mem.Allocator, expected_title: ?[]const u8, 
     };
 }
 
-pub fn screenCapture(allocator: std.mem.Allocator, path: []const u8) !core.model.ScreenCaptureResponse {
+pub fn screenCapture(allocator: std.mem.Allocator, path: []const u8, display_id: ?u32, window_handle: ?u64) !core.model.ScreenCaptureResponse {
     return switch (builtin.os.tag) {
-        .windows => windows.runtime.screenCapture(allocator, path),
-        .linux => linux.runtime.screenCapture(allocator, path),
-        .macos => mac.runtime.screenCapture(allocator, path),
+        .windows => windows.runtime.screenCapture(allocator, path, display_id, window_handle),
+        .linux => linux.runtime.screenCapture(allocator, path, display_id, window_handle),
+        .macos => mac.runtime.screenCapture(allocator, path, display_id, window_handle),
         else => core.model.failure(core.model.ScreenCapture, "screen.capture", core.errors.codes.unsupported_host, "This host OS is outside the current EasyTouch support matrix.", null),
     };
 }
@@ -261,6 +369,15 @@ pub fn waitFocus(allocator: std.mem.Allocator, title: []const u8, timeout_ms: u6
         .linux => linux.runtime.waitFocus(allocator, title, timeout_ms, match_mode),
         .macos => mac.runtime.waitFocus(allocator, title, timeout_ms, match_mode),
         else => core.model.failure(core.model.WaitWindow, "wait.focus", core.errors.codes.unsupported_host, "This host OS is outside the current EasyTouch support matrix.", null),
+    };
+}
+
+pub fn waitActivate(allocator: std.mem.Allocator, handle: u64, timeout_ms: u64, expect_active: bool) !core.model.WaitWindowResponse {
+    return switch (builtin.os.tag) {
+        .windows => windows.runtime.waitActivate(allocator, handle, timeout_ms, expect_active),
+        .linux => linux.runtime.waitActivate(allocator, handle, timeout_ms, expect_active),
+        .macos => mac.runtime.waitActivate(allocator, handle, timeout_ms, expect_active),
+        else => core.model.failure(core.model.WaitWindow, "wait.activate", core.errors.codes.unsupported_host, "This host OS is outside the current EasyTouch support matrix.", null),
     };
 }
 
