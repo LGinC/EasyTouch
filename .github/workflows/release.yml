@@ -12,12 +12,14 @@ jobs:
   build:
     name: build-${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
+    continue-on-error: ${{ matrix.allow_failure }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: windows-x64
             runner: windows-latest
+            allow_failure: false
             platform_id: windows
             arch: x64
             binary_name: et.exe
@@ -26,6 +28,7 @@ jobs:
             zig_target: x86_64-windows
           - name: windows-arm64
             runner: windows-11-arm
+            allow_failure: false
             platform_id: windows
             arch: arm64
             binary_name: et.exe
@@ -34,6 +37,7 @@ jobs:
             zig_target: aarch64-windows
           - name: linux-x64
             runner: ubuntu-latest
+            allow_failure: false
             platform_id: linux
             arch: x64
             binary_name: et
@@ -42,6 +46,7 @@ jobs:
             zig_target: x86_64-linux
           - name: linux-arm64
             runner: ubuntu-24.04-arm
+            allow_failure: false
             platform_id: linux
             arch: arm64
             binary_name: et
@@ -50,6 +55,7 @@ jobs:
             zig_target: aarch64-linux
           - name: macos-x64
             runner: macos-15-intel
+            allow_failure: true
             platform_id: macos
             arch: x64
             binary_name: et
@@ -58,6 +64,7 @@ jobs:
             zig_target: x86_64-macos
           - name: macos-arm64
             runner: macos-14
+            allow_failure: true
             platform_id: macos
             arch: arm64
             binary_name: et
@@ -157,6 +164,7 @@ jobs:
   release:
     name: github-release
     needs: build
+    if: ${{ always() }}
     runs-on: ubuntu-latest
 
     steps:
@@ -175,7 +183,9 @@ jobs:
   stage-platform-npm:
     name: stage-${{ matrix.package_name }}
     needs: build
+    if: ${{ always() }}
     runs-on: ubuntu-latest
+    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
@@ -185,9 +195,6 @@ jobs:
             binary_name: et.exe
           - platform_id: linux
             package_name: easytouch-linux
-            binary_name: et
-          - platform_id: macos
-            package_name: easytouch-macos
             binary_name: et
 
     steps:
@@ -232,7 +239,9 @@ jobs:
   publish-platform-npm:
     name: publish-${{ matrix.package_name }}
     needs: stage-platform-npm
+    if: ${{ always() }}
     runs-on: ubuntu-latest
+    continue-on-error: true
     permissions:
       contents: read
       id-token: write
@@ -242,7 +251,6 @@ jobs:
         package_name:
           - easytouch-windows
           - easytouch-linux
-          - easytouch-macos
 
     steps:
       - name: Download platform npm artifact
@@ -266,6 +274,7 @@ jobs:
     name: publish-root-npm
     needs:
       - publish-platform-npm
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
