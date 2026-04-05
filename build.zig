@@ -26,10 +26,30 @@ fn normalizeLinuxHostTarget(query: std.Target.Query, host: std.Target) std.Targe
     return normalized;
 }
 
+fn configureMacSysroot(b: *std.Build, target: std.Build.ResolvedTarget) void {
+    if (target.result.os.tag != .macos) return;
+    if (b.sysroot != null) return;
+
+    if (b.graph.env_map.get("SDKROOT")) |sdk_root| {
+        if (sdk_root.len != 0) {
+            b.sysroot = b.dupePath(sdk_root);
+            return;
+        }
+    }
+
+    if (b.graph.host.result.os.tag != .macos) return;
+
+    if (std.zig.system.darwin.getSdk(b.allocator, &target.result)) |sdk_root| {
+        b.sysroot = sdk_root;
+    }
+}
+
 pub fn build(b: *std.Build) void {
     const target_query = normalizeLinuxHostTarget(b.standardTargetOptionsQueryOnly(.{}), b.graph.host.result);
     const target = b.resolveTargetQuery(target_query);
     const optimize = b.standardOptimizeOption(.{});
+
+    configureMacSysroot(b, target);
 
     const core_mod = b.createModule(.{
         .root_source_file = b.path("src/core/root.zig"),
@@ -89,6 +109,8 @@ pub fn build(b: *std.Build) void {
             exe.root_module.linkSystemLibrary("X11", .{});
         },
         .macos => {
+            lib.root_module.link_libc = true;
+            exe.root_module.link_libc = true;
             lib.root_module.linkFramework("ApplicationServices", .{});
             exe.root_module.linkFramework("ApplicationServices", .{});
         },
