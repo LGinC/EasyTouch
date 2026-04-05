@@ -1420,11 +1420,11 @@ fn macRunCommand(allocator: std.mem.Allocator, argv: []const []const u8, stdin_b
     }
 
     const stdout = if (child.stdout) |stdout_pipe|
-        try stdout_pipe.reader().readAllAlloc(allocator, 8 * 1024 * 1024)
+        try stdout_pipe.readToEndAlloc(allocator, 8 * 1024 * 1024)
     else
         try allocator.dupe(u8, "");
     const stderr = if (child.stderr) |stderr_pipe|
-        try stderr_pipe.reader().readAllAlloc(allocator, 4 * 1024 * 1024)
+        try stderr_pipe.readToEndAlloc(allocator, 4 * 1024 * 1024)
     else
         try allocator.dupe(u8, "");
 

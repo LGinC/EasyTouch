@@ -20,15 +20,15 @@ jobs:
           - name: windows-x64
             runner: windows-latest
             package_name: easytouch-windows
-            binary_name: easytouch.exe
+            binary_name: et.exe
           - name: linux-x64
             runner: ubuntu-latest
             package_name: easytouch-linux
-            binary_name: easytouch
+            binary_name: et
           - name: macos-x64
             runner: macos-latest
             package_name: easytouch-macos
-            binary_name: easytouch
+            binary_name: et
 
     steps:
       - name: Check out repository

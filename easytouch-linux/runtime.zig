@@ -1260,7 +1260,7 @@ pub fn screenDisplays(allocator: std.mem.Allocator) !core.model.DisplayListRespo
         _ = child.kill() catch {};
         return core.model.failure(core.model.DisplayList, "screen.displays", core.errors.codes.system_error, "xrandr stdout pipe was unavailable.", null);
     };
-    const output = stdout_pipe.reader().readAllAlloc(allocator, 256 * 1024) catch |err| {
+    const output = stdout_pipe.readToEndAlloc(allocator, 256 * 1024) catch |err| {
         _ = child.kill() catch {};
         return core.model.failure(core.model.DisplayList, "screen.displays", core.errors.codes.system_error, "Failed to read xrandr output.", @errorName(err));
     };
@@ -1702,11 +1702,11 @@ fn linuxRunCommand(allocator: std.mem.Allocator, argv: []const []const u8, stdin
     }
 
     const stdout = if (child.stdout) |stdout_pipe|
-        try stdout_pipe.reader().readAllAlloc(allocator, 8 * 1024 * 1024)
+        try stdout_pipe.readToEndAlloc(allocator, 8 * 1024 * 1024)
     else
         try allocator.dupe(u8, "");
     const stderr = if (child.stderr) |stderr_pipe|
-        try stderr_pipe.reader().readAllAlloc(allocator, 4 * 1024 * 1024)
+        try stderr_pipe.readToEndAlloc(allocator, 4 * 1024 * 1024)
     else
         try allocator.dupe(u8, "");
 
