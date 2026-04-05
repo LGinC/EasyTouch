@@ -1,0 +1,176 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build-${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-x64
+            runner: windows-latest
+            package_name: easytouch-windows
+            binary_name: easytouch.exe
+            archive_name: easytouch-${{ github.ref_name }}-windows-x64.zip
+          - name: linux-x64
+            runner: ubuntu-latest
+            package_name: easytouch-linux
+            binary_name: easytouch
+            archive_name: easytouch-${{ github.ref_name }}-linux-x64.tar.gz
+          - name: macos-x64
+            runner: macos-13
+            package_name: easytouch-macos
+            binary_name: easytouch
+            archive_name: easytouch-${{ github.ref_name }}-macos-x64.tar.gz
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.15.2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Normalize npm package versions
+        run: node scripts/release/set-version.mjs ${{ github.ref_name }}
+
+      - name: Build release binary
+        run: zig build -Doptimize=ReleaseSafe
+
+      - name: Stage release archive (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $assetRoot = Join-Path $PWD 'dist/release/windows-x64'
+          New-Item -ItemType Directory -Force -Path $assetRoot | Out-Null
+          Copy-Item 'zig-out/bin/easytouch.exe' (Join-Path $assetRoot 'easytouch.exe')
+          Copy-Item 'README.md' (Join-Path $assetRoot 'README.md')
+          Copy-Item 'SKILL.md' (Join-Path $assetRoot 'SKILL.md')
+          Copy-Item 'LICENSE.txt' (Join-Path $assetRoot 'LICENSE.txt')
+          Compress-Archive -Path "$assetRoot/*" -DestinationPath (Join-Path 'dist/release' '${{ matrix.archive_name }}') -Force
+
+      - name: Stage release archive (POSIX)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          asset_root="dist/release/${{ matrix.name }}"
+          mkdir -p "$asset_root"
+          cp zig-out/bin/easytouch "$asset_root/easytouch"
+          cp README.md "$asset_root/README.md"
+          cp SKILL.md "$asset_root/SKILL.md"
+          cp LICENSE.txt "$asset_root/LICENSE.txt"
+          chmod +x "$asset_root/easytouch"
+          tar -C "$asset_root" -czf "dist/release/${{ matrix.archive_name }}" .
+
+      - name: Stage platform npm package
+        run: |
+          node scripts/release/stage-platform-package.mjs --template packages/${{ matrix.package_name }} --output dist/npm/${{ matrix.package_name }} --binary zig-out/bin/${{ matrix.binary_name }} --binary-name ${{ matrix.binary_name }}
+
+      - name: Upload release archive artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.name }}
+          path: dist/release/${{ matrix.archive_name }}
+
+      - name: Upload npm platform artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-${{ matrix.package_name }}
+          path: dist/npm/${{ matrix.package_name }}
+
+  release:
+    name: github-release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: dist/release
+
+      - name: Publish GitHub Release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/release/*
+
+  publish-platform-npm:
+    name: publish-${{ matrix.package_name }}
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        package_name:
+          - easytouch-windows
+          - easytouch-linux
+          - easytouch-macos
+
+    steps:
+      - name: Download platform npm artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: npm-${{ matrix.package_name }}
+          path: dist/npm
+
+      - name: Set up Node.js for npm publish
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: Dry-run platform package
+        run: npm pack --dry-run ./dist/npm/${{ matrix.package_name }}
+
+      - name: Publish platform package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPMTOKEN }}
+        run: npm publish --access public ./dist/npm/${{ matrix.package_name }}
+
+  publish-root-npm:
+    name: publish-root-npm
+    needs:
+      - publish-platform-npm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js for npm publish
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: Normalize npm package versions
+        run: node scripts/release/set-version.mjs ${{ github.ref_name }}
+
+      - name: Dry-run root package
+        run: npm pack --dry-run
+
+      - name: Publish root package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPMTOKEN }}
+        run: npm publish --access public

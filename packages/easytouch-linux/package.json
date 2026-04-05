@@ -1,0 +1,18 @@
+{
+  "name": "easytouch-linux",
+  "version": "1.0.8-dev",
+  "description": "Linux binary distribution for EasyTouch.",
+  "license": "SEE LICENSE IN LICENSE.txt",
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "files": [
+    "bin/**",
+    "LICENSE.txt",
+    "README.md",
+    "SKILL.md"
+  ]
+}

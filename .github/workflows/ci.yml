@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-smoke:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-x64
+            runner: windows-latest
+            package_name: easytouch-windows
+            binary_name: easytouch.exe
+          - name: linux-x64
+            runner: ubuntu-latest
+            package_name: easytouch-linux
+            binary_name: easytouch
+          - name: macos-x64
+            runner: macos-13
+            package_name: easytouch-macos
+            binary_name: easytouch
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.15.2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build EasyTouch
+        run: zig build
+
+      - name: Smoke test status
+        run: zig build run -- status
+
+      - name: Smoke test manifest JSON
+        run: zig build run -- mcp-stdio --output json
+
+      - name: Smoke test system info JSON
+        run: zig build run -- system os-info --output json
+
+      - name: Dry-run root npm package
+        run: |
+          node scripts/release/set-version.mjs 0.1.0-ci
+          npm pack --dry-run
+
+      - name: Dry-run host platform npm package
+        run: |
+          node scripts/release/stage-platform-package.mjs --template packages/${{ matrix.package_name }} --output dist/npm/${{ matrix.package_name }} --binary zig-out/bin/${{ matrix.binary_name }} --binary-name ${{ matrix.binary_name }}
+          npm pack --dry-run ./dist/npm/${{ matrix.package_name }}
