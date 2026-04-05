@@ -125,6 +125,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    environment: ${{ vars.NPM_PUBLISH_ENVIRONMENT || 'build' }}
     strategy:
       fail-fast: false
       matrix:
@@ -149,9 +150,18 @@ jobs:
       - name: Dry-run platform package
         run: npm pack --dry-run ./dist/npm/${{ matrix.package_name }}
 
+      - name: Validate npm token
+        env:
+          NPM_TOKEN: ${{ secrets.NPMTOKEN || vars.NPMTOKEN }}
+        run: |
+          if [ -z "$NPM_TOKEN" ]; then
+            echo "::error::NPM token is empty. Set NPMTOKEN in the bound GitHub Environment (or repository-level secret/variable)."
+            exit 1
+          fi
+
       - name: Publish platform package
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPMTOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPMTOKEN || vars.NPMTOKEN }}
         run: npm publish --access public ./dist/npm/${{ matrix.package_name }}
 
   publish-root-npm:
@@ -161,6 +171,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    environment: ${{ vars.NPM_PUBLISH_ENVIRONMENT || 'npm-publish' }}
 
     steps:
       - name: Check out repository
@@ -178,7 +189,16 @@ jobs:
       - name: Dry-run root package
         run: npm pack --dry-run
 
+      - name: Validate npm token
+        env:
+          NPM_TOKEN: ${{ secrets.NPMTOKEN || vars.NPMTOKEN }}
+        run: |
+          if [ -z "$NPM_TOKEN" ]; then
+            echo "::error::NPM token is empty. Set NPMTOKEN in the bound GitHub Environment (or repository-level secret/variable)."
+            exit 1
+          fi
+
       - name: Publish root package
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPMTOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPMTOKEN || vars.NPMTOKEN }}
         run: npm publish --access public
