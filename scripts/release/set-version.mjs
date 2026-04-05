@@ -15,6 +15,33 @@ const normalizedVersion = requestedVersion.startsWith("v")
   ? requestedVersion.slice(1)
   : requestedVersion;
 
+function toPublishableSemver(version) {
+  const semverPattern =
+    /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
+
+  if (semverPattern.test(version)) {
+    return version;
+  }
+
+  // Support tags like v1.2.3.4 by converting to semver prerelease 1.2.3-4.
+  const fourPartMatch = version.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+  if (fourPartMatch) {
+    const [, major, minor, patch, build] = fourPartMatch;
+    return `${major}.${minor}.${patch}-${build}`;
+  }
+
+  return null;
+}
+
+const publishableVersion = toPublishableSemver(normalizedVersion);
+
+if (!publishableVersion) {
+  console.error(
+    `Invalid npm version '${normalizedVersion}'. Use semver like 1.2.3 or 1.2.3-beta.1. Four-part tags like 1.2.3.4 are supported and will be converted to 1.2.3-4.`
+  );
+  process.exit(1);
+}
+
 const packageFiles = [
   path.join(repoRoot, "package.json"),
   path.join(repoRoot, "packages", "easytouch-windows", "package.json"),
@@ -24,16 +51,16 @@ const packageFiles = [
 
 for (const filePath of packageFiles) {
   const packageJson = JSON.parse(await fs.readFile(filePath, "utf8"));
-  packageJson.version = normalizedVersion;
+  packageJson.version = publishableVersion;
 
   if (packageJson.name === "easytouch") {
     packageJson.optionalDependencies = {
-      "easytouch-windows": normalizedVersion,
-      "easytouch-linux": normalizedVersion,
-      "easytouch-macos": normalizedVersion,
+      "easytouch-windows": publishableVersion,
+      "easytouch-linux": publishableVersion,
+      "easytouch-macos": publishableVersion,
     };
   }
 
   await fs.writeFile(filePath, `${JSON.stringify(packageJson, null, 2)}\n`, "utf8");
-  console.log(`updated ${path.relative(repoRoot, filePath)} -> ${normalizedVersion}`);
+  console.log(`updated ${path.relative(repoRoot, filePath)} -> ${publishableVersion}`);
 }
