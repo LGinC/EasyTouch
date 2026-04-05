@@ -1,18 +1,30 @@
 {
   "name": "easytouch-windows",
   "version": "1.0.8-dev",
-  "description": "Windows binary distribution for EasyTouch.",
+  "description": "Windows binary distribution for EasyTouch with x64 and arm64 binaries.",
   "license": "SEE LICENSE IN LICENSE.txt",
+  "type": "commonjs",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/whuanle/EasyTouch"
+  },
+  "bugs": {
+    "url": "https://github.com/whuanle/EasyTouch/issues"
+  },
+  "homepage": "https://github.com/whuanle/EasyTouch#readme",
+  "bin": {
+    "et": "bin/et.js"
+  },
   "os": [
     "win32"
-  ],
-  "cpu": [
-    "x64"
   ],
   "files": [
     "bin/**",
     "LICENSE.txt",
     "README.md",
     "SKILL.md"
-  ]
+  ],
+  "engines": {
+    "node": ">=18"
+  }
 }

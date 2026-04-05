@@ -4,26 +4,22 @@ const cp = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const packageByPlatform = {
-  win32: "easytouch-windows",
-  linux: "easytouch-linux",
-  darwin: "easytouch-macos",
-};
-
 const archDirectoryByNodeArch = {
   x64: "x64",
   arm64: "arm64",
 };
+
+const packageName = require(path.join(__dirname, "..", "package.json")).name;
 
 function fail(message) {
   process.stderr.write(`et: ${message}\n`);
   process.exit(1);
 }
 
-function getAvailableArchitectures(binRoot) {
+function getAvailableArchitectures() {
   try {
     return fs
-      .readdirSync(binRoot, { withFileTypes: true })
+      .readdirSync(__dirname, { withFileTypes: true })
       .filter((entry) => entry.isDirectory())
       .map((entry) => entry.name)
       .sort();
@@ -33,29 +29,15 @@ function getAvailableArchitectures(binRoot) {
 }
 
 function resolveBinaryPath() {
-  const packageName = packageByPlatform[process.platform];
-  if (!packageName) {
-    fail(`Unsupported platform '${process.platform}'.`);
-  }
-
   const archDirectory = archDirectoryByNodeArch[process.arch];
   if (!archDirectory) {
     fail(`Unsupported architecture '${process.arch}' on platform '${process.platform}'.`);
   }
 
-  let packageJsonPath;
-  try {
-    packageJsonPath = require.resolve(`${packageName}/package.json`);
-  } catch (error) {
-    fail(`The platform package '${packageName}' is not installed. Reinstall 'easytouch' on this host.`);
-  }
-
-  const packageRoot = path.dirname(packageJsonPath);
   const binaryName = process.platform === "win32" ? "et.exe" : "et";
-  const binRoot = path.join(packageRoot, "bin");
-  const binaryPath = path.join(binRoot, archDirectory, binaryName);
+  const binaryPath = path.join(__dirname, archDirectory, binaryName);
   if (!fs.existsSync(binaryPath)) {
-    const availableArchitectures = getAvailableArchitectures(binRoot);
+    const availableArchitectures = getAvailableArchitectures();
     const availableMessage = availableArchitectures.length
       ? ` Available architectures: ${availableArchitectures.join(", ")}.`
       : "";

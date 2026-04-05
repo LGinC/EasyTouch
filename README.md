@@ -29,7 +29,13 @@
 
 ### 安装
 
-按照操作系统安装，安装命令：
+推荐直接安装根包：
+
+```bash
+npm i -g easytouch
+```
+
+也可以只安装当前操作系统对应的平台包：
 
 ```
 # Windows
@@ -39,8 +45,10 @@ npm i  -g easytouch-windows
 npm i  -g easytouch-linux
 
 # macOS
-npm i -g easytouch-mac
+npm i -g easytouch-macos
 ```
+
+平台包内部同时包含 x64 和 arm64 二进制，安装后会根据当前 Node 进程的 CPU 架构自动选择对应程序文件。
 
 
 
@@ -60,7 +68,7 @@ npx skills add https://github.com/whuanle/EasyTouch
 
 
 
-注：skills 里面不带脚本，需提前使用 `npm i easytouch-windows` 安装工具。
+注：skills 里面不带脚本，需提前使用 `npm i easytouch` 或当前平台包安装工具。
 
 ![image-20260224090411080](images/image-20260224090411080.png)
 
@@ -70,7 +78,7 @@ npx skills add https://github.com/whuanle/EasyTouch
 
 如果只是给 AI 工具使用，建议使用 skills 即可，配置 MCP 可能会麻烦一些。
 
-在 Claude、Cursor 等工具中，配置 MCP 的方式都是大同小异，通过 npm/bun 等方式安装的 EasyTouch，程序文件在 `$basedir/node_modules/easytouch-windows` 下面，。
+在 Claude、Cursor 等工具中，配置 MCP 的方式都是大同小异。通过 npm/bun 安装后，优先直接调用 `et` 或 `npx`。如果必须引用平台包内的真实二进制，路径位于平台包的 `bin/x64` 或 `bin/arm64` 目录下。
 
 
 
@@ -96,7 +104,7 @@ npx skills add https://github.com/whuanle/EasyTouch
   "mcpServers": {
     "easytouch": {
       "command": "npx",
-      "args": ["-y", "easytouch-windows", "--mcp"]
+      "args": ["-y", "easytouch", "--mcp"]
     }
   }
 }
