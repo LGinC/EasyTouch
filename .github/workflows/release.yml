@@ -162,7 +162,17 @@ jobs:
       - name: Publish platform package
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPMTOKEN || vars.NPMTOKEN }}
-        run: npm publish --access public ./dist/npm/${{ matrix.package_name }}
+        run: |
+          set +e
+          publish_output=$(npm publish --access public ./dist/npm/${{ matrix.package_name }} 2>&1)
+          publish_exit=$?
+          printf '%s\n' "$publish_output"
+          if [ $publish_exit -ne 0 ]; then
+            if printf '%s\n' "$publish_output" | grep -q "npm error code EOTP"; then
+              echo "::error::npm returned EOTP. The token can authenticate but cannot publish without OTP. Use an npm Automation token for CI and store it as NPMTOKEN in the bound Environment."
+            fi
+            exit $publish_exit
+          fi
 
   publish-root-npm:
     name: publish-root-npm
@@ -171,7 +181,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    environment: ${{ vars.NPM_PUBLISH_ENVIRONMENT || 'npm-publish' }}
+    environment: ${{ vars.NPM_PUBLISH_ENVIRONMENT || 'build' }}
 
     steps:
       - name: Check out repository
@@ -201,4 +211,14 @@ jobs:
       - name: Publish root package
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPMTOKEN || vars.NPMTOKEN }}
-        run: npm publish --access public
+        run: |
+          set +e
+          publish_output=$(npm publish --access public 2>&1)
+          publish_exit=$?
+          printf '%s\n' "$publish_output"
+          if [ $publish_exit -ne 0 ]; then
+            if printf '%s\n' "$publish_output" | grep -q "npm error code EOTP"; then
+              echo "::error::npm returned EOTP. The token can authenticate but cannot publish without OTP. Use an npm Automation token for CI and store it as NPMTOKEN in the bound Environment."
+            fi
+            exit $publish_exit
+          fi
