@@ -125,6 +125,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      id-token: write
     environment: ${{ vars.NPM_PUBLISH_ENVIRONMENT || 'build' }}
     strategy:
       fail-fast: false
@@ -150,29 +151,23 @@ jobs:
       - name: Dry-run platform package
         run: npm pack --dry-run ./dist/npm/${{ matrix.package_name }}
 
-      - name: Validate npm token
-        env:
-          NPM_TOKEN: ${{ secrets.NPMTOKEN || vars.NPMTOKEN }}
+      - name: Preflight trusted publishing
+        shell: bash
         run: |
-          if [ -z "$NPM_TOKEN" ]; then
-            echo "::error::NPM token is empty. Set NPMTOKEN in the bound GitHub Environment (or repository-level secret/variable)."
+          set -euo pipefail
+          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] || [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
+            echo "::error::OIDC token is unavailable. Ensure this job has permissions.id-token: write."
             exit 1
           fi
+          echo "::notice::OIDC token is available for trusted publishing."
+          echo "::notice::If publish fails, verify npm Trusted Publisher is configured for package '${{ matrix.package_name }}' and workflow '.github/workflows/release.yml' in this repository."
 
       - name: Publish platform package
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPMTOKEN || vars.NPMTOKEN }}
-        run: |
-          set +e
-          publish_output=$(npm publish --access public ./dist/npm/${{ matrix.package_name }} 2>&1)
-          publish_exit=$?
-          printf '%s\n' "$publish_output"
-          if [ $publish_exit -ne 0 ]; then
-            if printf '%s\n' "$publish_output" | grep -q "npm error code EOTP"; then
-              echo "::error::npm returned EOTP. The token can authenticate but cannot publish without OTP. Use an npm Automation token for CI and store it as NPMTOKEN in the bound Environment."
-            fi
-            exit $publish_exit
-          fi
+        uses: JS-DevTools/npm-publish@v4
+        with:
+          package: ./dist/npm/${{ matrix.package_name }}
+          access: public
+          provenance: true
 
   publish-root-npm:
     name: publish-root-npm
@@ -181,6 +176,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      id-token: write
     environment: ${{ vars.NPM_PUBLISH_ENVIRONMENT || 'build' }}
 
     steps:
@@ -199,26 +195,19 @@ jobs:
       - name: Dry-run root package
         run: npm pack --dry-run
 
-      - name: Validate npm token
-        env:
-          NPM_TOKEN: ${{ secrets.NPMTOKEN || vars.NPMTOKEN }}
+      - name: Preflight trusted publishing
+        shell: bash
         run: |
-          if [ -z "$NPM_TOKEN" ]; then
-            echo "::error::NPM token is empty. Set NPMTOKEN in the bound GitHub Environment (or repository-level secret/variable)."
+          set -euo pipefail
+          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] || [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
+            echo "::error::OIDC token is unavailable. Ensure this job has permissions.id-token: write."
             exit 1
           fi
+          echo "::notice::OIDC token is available for trusted publishing."
+          echo "::notice::If publish fails, verify npm Trusted Publisher is configured for package 'easytouch' and workflow '.github/workflows/release.yml' in this repository."
 
       - name: Publish root package
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPMTOKEN || vars.NPMTOKEN }}
-        run: |
-          set +e
-          publish_output=$(npm publish --access public 2>&1)
-          publish_exit=$?
-          printf '%s\n' "$publish_output"
-          if [ $publish_exit -ne 0 ]; then
-            if printf '%s\n' "$publish_output" | grep -q "npm error code EOTP"; then
-              echo "::error::npm returned EOTP. The token can authenticate but cannot publish without OTP. Use an npm Automation token for CI and store it as NPMTOKEN in the bound Environment."
-            fi
-            exit $publish_exit
-          fi
+        uses: JS-DevTools/npm-publish@v4
+        with:
+          access: public
+          provenance: true
