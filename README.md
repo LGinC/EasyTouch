@@ -5,6 +5,7 @@
 目前：
 
 - [x] Windows
+
 - [x] Linux
 - [ ] MAC（目前缺少设备验证功能）
 

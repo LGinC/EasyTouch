@@ -60,7 +60,7 @@ et mcp-stdio --output json
 
 ### 自动化命令
 
-默认命令执行输出结果内容为 json，如需直接输出文本可使用 `-output text` 指定。
+默认命令执行输出结果内容为 json，如需直接输出文本可使用 `-output text` 指定。
 
 
 
@@ -76,6 +76,12 @@ et mcp-stdio --output json
 | `system hardware-info` | 读取硬件概览（架构、核心、页大小、物理内存、虚拟内存、机器名） |
 | `system network-info` | 读取网络适配器信息（IPv4、MAC、网卡类型、DHCP 状态） |
 
+平台说明：
+
+- Windows：全部可用。
+- Linux：整体可用，`system network-info` 依赖 `ip` 命令。
+- macOS：整体可用，信息主要来自 `sysctl`、`vm_stat`、`ifconfig` 等系统命令。
+
 
 
 #### 鼠标操作
@@ -86,6 +92,12 @@ et mcp-stdio --output json
 | `mouse move --x <x> --y <y> [--duration-ms <ms>] [--jitter-px <px>] [--step-delay-ms <ms>]` | 以渐进轨迹移动鼠标，支持抖动与延迟，更接近人类操作 |
 | `mouse click [--button <left\|right\|middle>] [--count <n>]` | 执行鼠标点击 |
 | `mouse scroll --delta <amount>` | 执行鼠标滚轮滚动 |
+
+平台说明：
+
+- Windows：全部可用。
+- Linux：依赖 `xdotool`，并要求运行在 X11 或 XWayland 会话中；Wayland 原生会话下可能被桌面环境限制。
+- macOS：依赖系统 Accessibility 权限；未授权时鼠标读取和注入会失败。
 
 
 
@@ -117,6 +129,13 @@ et mcp-stdio --output json
 | `window close --handle <handle>` | 按句柄请求关闭窗口 |
 | `app launch --target <path-or-uri>` | 启动应用、打开文件或 URI |
 
+平台说明：
+
+- Windows：全部可用。
+- Linux：`window list`、`window foreground`、`window activate`、`window close` 可用；`window show`、`window minimize` 依赖 `xdotool`，`window maximize`、`window restore`、`window move` 依赖 `wmctrl` 和兼容 EWMH 的窗口管理器。
+- Linux：整体要求 X11 或 XWayland 会话，Wayland 原生会话下窗口句柄和控制能力可能受限。
+- macOS：窗口控制依赖 Accessibility 和 Automation 权限；`window show`、`window minimize`、`window maximize`、`window restore`、`window move`、`window close` 通过 `System Events` 操作，若同一进程里有多个同名窗口，系统会按首个匹配窗口执行。
+
 参数说明：
 - `--title`：窗口标题关键字
 - `--match`：匹配模式，`contains` 或 `exact`
@@ -139,6 +158,12 @@ et mcp-stdio --output json
 | `clipboard set-files --paths <path1;path2;...>` | 写入剪贴板文件列表（用于后续粘贴文件） |
 | `clipboard set-image --path <image-file>` | 写入剪贴板图片（用于后续粘贴图片） |
 
+平台说明：
+
+- Windows：全部可用。
+- Linux：依赖 `wl-copy` / `wl-paste` 或 `xclip` / `xsel`；缺少这些工具时，对应文本、文件、图片剪贴板能力不可用。
+- macOS：文本剪贴板通过 `pbcopy` / `pbpaste`；文件和图片剪贴板通过 `osascript` / JXA 写入，若宿主进程缺少 Automation 权限可能失败。
+
 参数说明：
 - `--text`：要写入的文本内容
 - `--paths`：多个文件路径，使用分号 `;` 分隔
@@ -157,6 +182,13 @@ et mcp-stdio --output json
 | `keyboard ime-switch [--strategy <win-space\|alt-shift\|ctrl-shift>]` | 切换输入法 |
 | `keyboard caps-lock [--state <toggle\|on\|off>]` | 控制大小写状态 |
 | `keyboard paste [--expect-title <text>] [--match <contains\|exact>]` | 发送粘贴动作，可加窗口标题保护 |
+
+平台说明：
+
+- Windows：全部可用。
+- Linux：依赖 `xdotool`，并要求运行在 X11 或 XWayland 会话中；Wayland 原生会话下键盘注入通常不稳定或被系统阻止。
+- macOS：依赖 Accessibility 权限；`keyboard ime-switch` 的策略会映射到系统快捷键，是否真正切换输入法取决于系统当前输入源绑定。
+- macOS：`keyboard caps-lock` 目前仅稳定支持 `toggle`，`on` / `off` 仍不保证可用。
 
 参数说明：
 - `--key`：按键名（如 `enter`、`esc`、`f5`）
@@ -177,6 +209,15 @@ et mcp-stdio --output json
 | `screen displays` | 列出显示器与分辨率信息 |
 | `screen pixel-color --x <x> --y <y>` | 读取指定像素颜色 |
 | `screen capture [--path <file>] [--display-id <id>] [--window-handle <handle>]` | 默认截取所有屏幕，或按屏幕/窗口定向截图 |
+
+平台说明：
+
+- Windows：全部可用。
+- Linux：`screen displays` 依赖 `xrandr`，`screen capture` 依赖 `grim`、`gnome-screenshot`、`scrot` 或 `import` 之一。
+- Linux：`screen capture --display-id` 和 `screen capture --window-handle` 仍未实现，当前只保证整桌面截图。
+- Linux：Wayland 原生会话下，截图和像素读取可能受桌面权限或会话类型限制。
+- macOS：`screen capture` 依赖系统 `screencapture` 命令；若系统未授予屏幕录制权限，截图或像素读取会失败。
+- macOS：支持 `--display-id` 与 `--window-handle` 定向截图，但前提是目标窗口仍存在于当前 CoreGraphics 快照中。
 
 参数说明：
 - `--x` / `--y`：像素坐标
@@ -212,6 +253,12 @@ screen capture --window-handle 0x001A09F2 --path ./captures/window.png
 | `wait clipboard [--expect-text <value>] [--timeout-ms <ms>] [--match <contains\|exact>]` | 等待剪贴板变化或匹配目标文本 |
 | `wait process [--name <text>\|--pid <pid>] [--expect-running <true\|false>] [--timeout-ms <ms>] [--match <contains\|exact>]` | 等待进程进入期望状态 |
 
+平台说明：
+
+- Windows：全部可用。
+- Linux：等待器本身可用，但会继承底层能力依赖；例如 `wait activate` 依赖 X11/XWayland 窗口焦点能力，`wait clipboard` 依赖剪贴板后端工具，`wait pixel` 依赖图形会话可读。
+- macOS：等待器整体可用，但 `wait activate`、`wait clipboard`、`wait pixel` 等同样受系统权限和图形会话状态影响。
+
 参数说明：
 - `--timeout-ms`：最长等待时间（毫秒），超时会返回失败
 - `--match`：文本匹配模式，`contains` 或 `exact`
@@ -242,6 +289,48 @@ wait process --name "chrome" --expect-running false --match contains --timeout-m
 
 
 
+## 注意事项
+
+功能按照 Windows 设计，以上所有功能在 Windows 下均可用，Linux 和 macOS 已补齐大部分常用能力，但仍有平台依赖和少量限制，使用前需要先确认桌面会话、系统权限和命令行工具是否满足。
+
+Linux：
+
+- 鼠标、键盘、窗口控制依赖 `xdotool`，并要求运行在 X11 或 XWayland 会话里。
+- `window maximize`、`window restore`、`window move` 依赖 `wmctrl` 和兼容 EWMH 的窗口管理器。
+- 剪贴板文本/文件/图片依赖 `wl-copy` / `wl-paste` 或 `xclip` / `xsel`。
+- `screen displays` 依赖 `xrandr`，`screen capture` 依赖 `grim`、`gnome-screenshot`、`scrot` 或 `import` 之一。
+- `system network-info` 依赖 `ip` 命令。
+- `screen capture --display-id` 和 `screen capture --window-handle` 在 Linux 仍未实现，当前只保证整桌面截图。
+- Wayland 原生会话下，部分窗口句柄、键鼠注入、像素读取和窗口控制可能被桌面环境限制；X11/XWayland 兼容性更好。
+
+macOS：
+
+- 窗口控制、键盘输入、剪贴板文件/图片等自动化依赖系统的 Accessibility 和 Automation 授权；如果宿主进程没有权限，命令会失败。
+- `window show`、`window minimize`、`window maximize`、`window restore`、`window move`、`window close` 通过 `System Events` 操作窗口；如果同一进程里有多个同名窗口，系统会按首个匹配窗口执行。
+- `keyboard ime-switch` 在 macOS 下做了策略映射：`win-space` 对应 `Command+Space`，`alt-shift` 对应 `Option+Space`，`ctrl-shift` 对应 `Control+Space`。是否真正切换输入法，取决于系统当前输入源快捷键绑定。
+- `keyboard caps-lock` 目前只支持 `toggle`；`on` / `off` 还不能稳定判断系统真实状态。
+
+
+
+任务编排：
+
+- 建议工作流：先观察，再动作，最后等待确认
+  - 观察：window.find / window.foreground / screen.pixel-color
+  - 动作：window.activate / keyboard.* / mouse.* / app.launch
+  - 确认：wait.window / wait.focus / wait.pixel / wait.clipboard / wait.process
+- 不要连续盲操作（点击、输入、窗口切换后应立即确认状态）
+- 参数约定：
+  - 匹配模式：contains|exact
+  - handle：非负整数
+  - x/y、delta：32 位有符号整数
+  - wait 默认超时：timeout_ms=2000
+  - wait_process：expect_running=true|false
+- 高风险动作（鼠标/键盘/窗口激活/窗口关闭/剪贴板写）前后都应插入观察或等待
+- Linux/macOS 的部分能力仍需以目标环境实测为准
+- 失败时优先读取：failure.code / failure.message / failure.detail
+
+
+
 ## MCP 接入
 
 ### 启动 MCP stdio 服务
@@ -260,6 +349,7 @@ et mcp-stdio --output json
 
 
 
+
 ### 配置示例
 
 ```json
@@ -274,20 +364,3 @@ et mcp-stdio --output json
 ```
 
 
-
-## 注意事项
-
-- 建议工作流：先观察，再动作，最后等待确认
-  - 观察：window.find / window.foreground / screen.pixel-color
-  - 动作：window.activate / keyboard.* / mouse.* / app.launch
-  - 确认：wait.window / wait.focus / wait.pixel / wait.clipboard / wait.process
-- 不要连续盲操作（点击、输入、窗口切换后应立即确认状态）
-- 参数约定：
-  - 匹配模式：contains|exact
-  - handle：非负整数
-  - x/y、delta：32 位有符号整数
-  - wait 默认超时：timeout_ms=2000
-  - wait_process：expect_running=true|false
-- 高风险动作（鼠标/键盘/窗口激活/窗口关闭/剪贴板写）前后都应插入观察或等待
-- Linux/macOS 的部分能力仍需以目标环境实测为准
-- 失败时优先读取：failure.code / failure.message / failure.detail

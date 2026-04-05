@@ -46,6 +46,14 @@ jobs:
         with:
           node-version: 20
 
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev
+
       - name: Normalize npm package versions
         run: node scripts/release/set-version.mjs ${{ github.ref_name }}
 
