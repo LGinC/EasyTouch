@@ -266,7 +266,7 @@ jobs:
       contents: read
       id-token: write
     env:
-      NODE_AUTH_TOKEN: ${{ secrets.NPMTOKEN || vars.NPMTOKEN }}
+      NODE_AUTH_TOKEN: ${{ secrets['NPMTOKEN'] || vars['NPMTOKEN'] }}
     strategy:
       fail-fast: false
       matrix:
@@ -320,7 +320,7 @@ jobs:
       contents: read
       id-token: write
     env:
-      NODE_AUTH_TOKEN: ${{ secrets.NPMTOKEN || vars.NPMTOKEN }}
+      NODE_AUTH_TOKEN: ${{ secrets['NPM_ROOT_TOKEN'] || vars['NPM_ROOT_TOKEN'] }}
 
     steps:
       - name: Download root npm artifact
@@ -340,10 +340,19 @@ jobs:
         run: |
           set -euo pipefail
           if [ -n "${NODE_AUTH_TOKEN:-}" ]; then
-            echo "Using NODE_AUTH_TOKEN fallback for npm publish."
+            echo "Using NPM_ROOT_TOKEN fallback for @whuanle/easytouch publish."
           else
             echo "Relying on npm Trusted Publishing / OIDC for publish authentication."
           fi
+
+      - name: Explain root package publish prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "@whuanle/easytouch is a scoped package."
+          echo "If this is the first publish, or if npm returns E404, use one of these paths:"
+          echo "1. Configure npm Trusted Publishing for @whuanle/easytouch and publish with OIDC."
+          echo "2. Or provide NPM_ROOT_TOKEN with permission to publish the @whuanle scope for bootstrap / recovery."
 
       - name: Show staged root package identity
         shell: bash
@@ -355,4 +364,16 @@ jobs:
         run: npm pack --dry-run ./dist/npm/easytouch
 
       - name: Publish root package
-        run: npm publish --access public --provenance ./dist/npm/easytouch
+        shell: bash
+        run: |
+          set +e
+          publish_output=$(npm publish --access public --provenance ./dist/npm/easytouch 2>&1)
+          publish_status=$?
+          printf '%s\n' "$publish_output"
+
+          if [ "$publish_status" -ne 0 ]; then
+            if printf '%s' "$publish_output" | grep -q "npm error code E404"; then
+              echo "::error::npm returned E404 for @whuanle/easytouch. This is usually not a tarball path problem. It usually means the current publish identity cannot create or update the @whuanle scoped package. Configure npm Trusted Publishing for @whuanle/easytouch, or provide NPM_ROOT_TOKEN with permission for the @whuanle scope."
+            fi
+            exit "$publish_status"
+          fi
