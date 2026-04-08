@@ -1,7 +1,7 @@
 {
   "name": "easytouch-workspace",
   "private": true,
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "EasyTouch repository workspace and release tooling.",
   "license": "SEE LICENSE IN LICENSE.txt",
   "type": "commonjs",
