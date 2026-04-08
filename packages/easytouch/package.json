@@ -1,6 +1,6 @@
 {
   "name": "@whuanle/easytouch",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "Cross-platform EasyTouch launcher package that resolves to the correct platform runtime.",
   "license": "SEE LICENSE IN LICENSE.txt",
   "type": "commonjs",

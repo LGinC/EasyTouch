@@ -368,10 +368,12 @@ et mcp-stdio --output json
 
 ```bash
 npm i @whuanle/easytouch
-node ./node_modules/@whuanle/easytouch/init.js
+npx @whuanle/easytouch init
 ```
 
 如果安装的是 `@whuanle/easytouch`，这一步会先自动安装当前系统对应的平台包，再生成原生 `et` 文件。
+
+如果依赖已经装在当前项目里，也可以直接执行 `node ./node_modules/@whuanle/easytouch/init.js`，但这只适用于本地安装目录。
 
 生成后的默认路径：
 
@@ -392,6 +394,15 @@ node ./node_modules/@whuanle/easytouch/init.js
 ```
 
 Windows 请把文件名写成 `et.exe`。Linux / macOS 写 `et`。
+
+如果是全局安装：
+
+```bash
+npm i -g @whuanle/easytouch
+et init
+```
+
+不要再写成 `node ./node_modules/@whuanle/easytouch/init.js`，因为全局安装不在当前项目目录下。
 
 如果你已经全局安装并且宿主能正确处理 PATH，也可以继续直接调用全局 `et`。首次运行时，如果平台包缺失，启动器也会自动安装当前平台包。
 

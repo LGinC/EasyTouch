@@ -113,10 +113,12 @@ npx skills add https://github.com/whuanle/EasyTouch
 
 ```bash
 npm i @whuanle/easytouch
-node ./node_modules/@whuanle/easytouch/init.js
+npx @whuanle/easytouch init
 ```
 
 如果安装的是 `@whuanle/easytouch`，这一步会先自动安装当前系统对应的平台包，再复制出原生 `et` 文件。
+
+如果你已经在项目里安装了依赖，也可以直接执行 `node ./node_modules/@whuanle/easytouch/init.js`，但这只适用于本地安装目录。
 
 执行后会生成：
 
@@ -144,7 +146,10 @@ node ./node_modules/@whuanle/easytouch/init.js
 
 ```bash
 npm i -g @whuanle/easytouch
+et init
 ```
+
+生成完原生文件后，MCP 仍然可以直接使用全局 `et`：
 
 ```json
 {
@@ -155,6 +160,18 @@ npm i -g @whuanle/easytouch
     }
   }
 }
+```
+
+如果你只是想手工执行脚本而不走 `et init`，需要先找到全局安装目录，例如：
+
+```bash
+npm root -g
+```
+
+然后再执行对应路径下的 `init.js`，而不是 `./node_modules/...`：
+
+```bash
+node <全局安装目录>/@whuanle/easytouch/init.js
 ```
 
 **宿主程序不走 PATH 时（旧方式）**

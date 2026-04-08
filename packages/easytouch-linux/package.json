@@ -1,6 +1,6 @@
 {
   "name": "easytouch-linux",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "Linux binary distribution for EasyTouch with x64 and arm64 binaries.",
   "license": "SEE LICENSE IN LICENSE.txt",
   "type": "commonjs",

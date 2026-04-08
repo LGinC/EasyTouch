@@ -336,10 +336,12 @@ Prefer running the package `init.js` first so it copies out the real native `et`
 
 ```bash
 npm i @whuanle/easytouch
-node ./node_modules/@whuanle/easytouch/init.js
+npx @whuanle/easytouch init
 ```
 
 When the installed package is `@whuanle/easytouch`, this step first installs the matching platform package for the current host, then writes the native `et` binary.
+
+If the dependency is already installed in the current project, `node ./node_modules/@whuanle/easytouch/init.js` also works, but only for a local install directory.
 
 Default output paths:
 
@@ -360,6 +362,15 @@ Recommended configuration:
 ```
 
 On Windows, use `et.exe` as the filename. On Linux and macOS, use `et`.
+
+For a global install, use:
+
+```bash
+npm i -g @whuanle/easytouch
+et init
+```
+
+Do not use `node ./node_modules/@whuanle/easytouch/init.js` for a global install, because the package is no longer under the current project directory.
 
 If you already use a global install and the host resolves PATH correctly, you can still call the global `et` command. On the first run, the launcher also installs the matching platform package if it is still missing.
 

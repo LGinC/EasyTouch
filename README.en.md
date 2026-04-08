@@ -88,10 +88,12 @@ First run:
 
 ```bash
 npm i @whuanle/easytouch
-node ./node_modules/@whuanle/easytouch/init.js
+npx @whuanle/easytouch init
 ```
 
 When the installed package is `@whuanle/easytouch`, this step first installs the matching platform package for the current host, then copies out the native `et` binary.
+
+If the dependency is already installed in the current project, `node ./node_modules/@whuanle/easytouch/init.js` also works, but only for a local project install.
 
 This generates:
 
@@ -119,7 +121,10 @@ If you already use a global install and the host resolves PATH correctly, you ca
 
 ```bash
 npm i -g @whuanle/easytouch
+et init
 ```
+
+After the native binary is prepared, MCP can still call the global `et` command directly:
 
 ```json
 {
@@ -130,6 +135,18 @@ npm i -g @whuanle/easytouch
     }
   }
 }
+```
+
+If you want to execute the script file manually instead of `et init`, first resolve the global install directory, for example:
+
+```bash
+npm root -g
+```
+
+Then run the `init.js` file from that global path instead of `./node_modules/...`:
+
+```bash
+node <global-install-dir>/@whuanle/easytouch/init.js
 ```
 
 **When The Host App Does Not Use PATH (Legacy Path)**

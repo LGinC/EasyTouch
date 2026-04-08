@@ -9,6 +9,8 @@ function printUsage() {
   process.stdout.write(
     [
       "Usage:",
+      "  et init [--output <path>] [--force]",
+      "  npx @whuanle/easytouch init [--output <path>] [--force]",
       "  node init.js [--output <path>] [--force]",
       "",
       "Behavior:",
