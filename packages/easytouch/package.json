@@ -1,7 +1,7 @@
 {
-  "name": "easytouch-macos",
+  "name": "@whuanle/easytouch",
   "version": "2.0.1",
-  "description": "macOS binary distribution for EasyTouch with x64 and arm64 binaries.",
+  "description": "Cross-platform EasyTouch launcher package that resolves to the correct platform runtime.",
   "license": "SEE LICENSE IN LICENSE.txt",
   "type": "commonjs",
   "repository": {
@@ -12,18 +12,20 @@
     "url": "https://github.com/whuanle/EasyTouch/issues"
   },
   "homepage": "https://github.com/whuanle/EasyTouch#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "et": "bin/et.js"
   },
-  "os": [
-    "darwin"
-  ],
   "files": [
     "bin/**",
     "init.js",
     "LICENSE.txt",
     "README.md",
-    "SKILL.md"
+    "README.en.md",
+    "SKILL.md",
+    "SKILL.en.md"
   ],
   "engines": {
     "node": ">=18"

@@ -364,25 +364,43 @@ et mcp-stdio --output json
 
 ### 配置示例
 
-优先使用全局 `et` 命令，这样三个平台都是同一套 MCP 配置：
+优先在安装后执行包内 `init.js`，把真实原生 `et` 程序复制出来，再让 MCP 直接调用这个文件：
+
+```bash
+npm i @whuanle/easytouch
+node ./node_modules/@whuanle/easytouch/init.js
+```
+
+如果安装的是 `@whuanle/easytouch`，这一步会先自动安装当前系统对应的平台包，再生成原生 `et` 文件。
+
+生成后的默认路径：
+
+- Windows：`./node_modules/@whuanle/easytouch/et.exe`
+- Linux / macOS：`./node_modules/@whuanle/easytouch/et`
+
+推荐配置：
 
 ```json
 {
   "mcpServers": {
     "easytouch": {
-      "command": "et",
+      "command": "<你的项目路径>/node_modules/@whuanle/easytouch/et",
       "args": ["mcp-stdio"]
     }
   }
 }
 ```
 
-如果宿主程序不能从 PATH 找到命令：
+Windows 请把文件名写成 `et.exe`。Linux / macOS 写 `et`。
+
+如果你已经全局安装并且宿主能正确处理 PATH，也可以继续直接调用全局 `et`。首次运行时，如果平台包缺失，启动器也会自动安装当前平台包。
+
+如果宿主程序不能从 PATH 找到命令，旧方式仍可用：
 
 - Windows：把 `command` 改成 `C:\Users\<你自己的用户名>\AppData\Roaming\npm\et.cmd`
 - Linux / macOS：先执行 `npm prefix -g`，再把 `command` 改成 `<prefix>/bin/et`
 
-如果不想全局安装，也可以临时通过 `npx` 启动：
+如果不想执行 `init.js`，也可以临时通过 `npx` 启动。首次运行可能会稍慢，因为会自动安装当前平台包：
 
 - Windows：`command` 推荐写 `npx.cmd`
 - Linux / macOS：`command` 写 `npx`
@@ -391,10 +409,36 @@ et mcp-stdio --output json
 {
   "mcpServers": {
     "easytouch": {
-      "command": "npx",
+      "command": "npx.cmd",
       "args": ["-y", "@whuanle/easytouch", "mcp-stdio"]
     }
   }
 }
 ```
+
+Linux / macOS 如果使用这段备用配置，把 `command` 改回 `npx` 即可。
+
+如果 Windows 宿主报 `LOCAL_PROCESS_ERROR`，优先改用 `init.js` 生成的 `et.exe`；如果仍走 npm 命令，再检查这里是不是还写成了 `npx`。
+
+### 语义元素树定位
+
+当需要更稳定地点击控件时，可以先读取前台窗口的元素树，再按元素查找、等待、点击或 invoke：
+
+```bash
+et element tree --output json
+et element find --name "确定" --control-type Button --output json
+et wait element --name "保存" --control-type Button --timeout-ms 5000 --output json
+et element click --element-id root/0/3 --output json
+et element invoke --element-id root/0/3 --output json
+```
+
+`element tree` 返回 `element_id`、`control_type`、`automation_id`、`class_name`、`framework_id`、`center`、`bounds`、`children` 等字段，适合让模型先找元素再执行动作。
+
+`element find` 支持按 `element_id`、`name`、`automation_id`、`class_name`、`control_type`、`framework_id` 查询元素。`wait element` 会轮询这些条件直到元素出现。`element invoke` 会走平台语义动作或中心点击回退。
+
+平台要求：
+
+- Windows：UI Automation + PowerShell。
+- Linux：`python3`/`python` + `pyatspi`，点击回退还需要 `xdotool`。
+- macOS：`osascript` + System Events，宿主需要 Accessibility / Automation 权限。
 

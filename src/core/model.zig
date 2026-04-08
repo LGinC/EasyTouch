@@ -41,6 +41,82 @@ pub const WindowInfo = struct {
     bounds: Rect,
 };
 
+pub const UiElementNode = struct {
+    element_id: []const u8,
+    name: []const u8,
+    automation_id: []const u8,
+    class_name: []const u8,
+    control_type: []const u8,
+    framework_id: []const u8,
+    is_enabled: bool,
+    is_offscreen: bool,
+    has_keyboard_focus: bool,
+    bounds: Rect,
+    center: Point,
+    children: []UiElementNode,
+};
+
+pub const UiElementRef = struct {
+    element_id: []const u8,
+    name: []const u8,
+    automation_id: []const u8,
+    class_name: []const u8,
+    control_type: []const u8,
+    framework_id: []const u8,
+    is_enabled: bool,
+    is_offscreen: bool,
+    has_keyboard_focus: bool,
+    bounds: Rect,
+    center: Point,
+};
+
+pub const ElementTree = struct {
+    window_handle: u64,
+    window_title: []const u8,
+    generated_at: []const u8,
+    max_depth: u32,
+    max_children: u32,
+    max_nodes: u32,
+    include_offscreen: bool,
+    root: UiElementNode,
+};
+
+pub const ElementQuery = struct {
+    window_handle: ?u64 = null,
+    element_id: ?[]const u8 = null,
+    name: ?[]const u8 = null,
+    automation_id: ?[]const u8 = null,
+    class_name: ?[]const u8 = null,
+    control_type: ?[]const u8 = null,
+    framework_id: ?[]const u8 = null,
+    match_mode: StringMatchMode = .contains,
+    max_depth: ?u32 = null,
+    max_children: ?u32 = null,
+    max_nodes: ?u32 = null,
+    include_offscreen: bool = false,
+    enabled_only: bool = false,
+    focus_only: bool = false,
+};
+
+pub const ElementMatchDetail = struct {
+    window_handle: u64,
+    window_title: []const u8,
+    generated_at: []const u8,
+    matched_by: []const u8,
+    element: UiElementRef,
+};
+
+pub const ElementMatch = struct {
+    found: bool,
+    match: ?ElementMatchDetail,
+};
+
+pub const WaitElement = struct {
+    matched: bool,
+    elapsed_ms: u64,
+    match: ?ElementMatchDetail,
+};
+
 pub const OsInfo = struct {
     platform: []const u8,
     arch: []const u8,
@@ -201,6 +277,8 @@ pub fn Envelope(comptime T: type) type {
 pub const OsInfoResponse = Envelope(OsInfo);
 pub const WindowListResponse = Envelope(WindowList);
 pub const ForegroundWindowResponse = Envelope(ForegroundWindow);
+pub const ElementTreeResponse = Envelope(ElementTree);
+pub const ElementMatchResponse = Envelope(ElementMatch);
 pub const ClipboardTextResponse = Envelope(ClipboardText);
 pub const ClipboardFilesResponse = Envelope(ClipboardFiles);
 pub const AckResponse = Envelope(Ack);
@@ -215,6 +293,7 @@ pub const DiskListResponse = Envelope(DiskList);
 pub const ProcessListResponse = Envelope(ProcessList);
 pub const NetworkInfoResponse = Envelope(NetworkInfo);
 pub const WindowMatchResponse = Envelope(WindowMatch);
+pub const WaitElementResponse = Envelope(WaitElement);
 pub const WaitWindowResponse = Envelope(WaitWindow);
 pub const WaitFocusResponse = Envelope(WaitWindow);
 pub const WaitPixelResponse = Envelope(WaitPixel);

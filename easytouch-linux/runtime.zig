@@ -1308,6 +1308,148 @@ pub fn screenDisplays(allocator: std.mem.Allocator) !core.model.DisplayListRespo
     });
 }
 
+pub fn elementTree(allocator: std.mem.Allocator, window_handle: ?u64, max_depth: ?u32, max_children: ?u32, max_nodes: ?u32, include_offscreen: bool) !core.model.ElementTreeResponse {
+    const resolved_max_depth = max_depth orelse 4;
+    if (resolved_max_depth == 0 or resolved_max_depth > 12) {
+        return core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.invalid_args, "max_depth must be in range 1..12.", null);
+    }
+
+    const resolved_max_children = max_children orelse 20;
+    if (resolved_max_children == 0 or resolved_max_children > 100) {
+        return core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.invalid_args, "max_children must be in range 1..100.", null);
+    }
+
+    const resolved_max_nodes = max_nodes orelse 250;
+    if (resolved_max_nodes == 0 or resolved_max_nodes > 1500) {
+        return core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.invalid_args, "max_nodes must be in range 1..1500.", null);
+    }
+
+    const handle_text = try std.fmt.allocPrint(allocator, "{d}", .{window_handle orelse 0});
+    defer allocator.free(handle_text);
+    const depth_text = try std.fmt.allocPrint(allocator, "{d}", .{resolved_max_depth});
+    defer allocator.free(depth_text);
+    const children_text = try std.fmt.allocPrint(allocator, "{d}", .{resolved_max_children});
+    defer allocator.free(children_text);
+    const nodes_text = try std.fmt.allocPrint(allocator, "{d}", .{resolved_max_nodes});
+    defer allocator.free(nodes_text);
+
+    const result = try linuxRunAccessibilityPython(allocator, linuxAccessibilityPythonScript, &[_][]const u8{
+        "tree",
+        handle_text,
+        depth_text,
+        children_text,
+        nodes_text,
+        if (include_offscreen) "1" else "0",
+    });
+    defer allocator.free(result.stdout);
+    defer allocator.free(result.stderr);
+
+    if (result.missing) {
+        return core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.not_implemented, "Linux semantic element inspection requires python3/python with pyatspi in an interactive AT-SPI desktop session.", if (result.stderr.len > 0) result.stderr else null);
+    }
+    if (result.exit_code != 0) {
+        return core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.system_error, "Linux accessibility inspection command failed.", try linuxCommandDetail(allocator, result));
+    }
+
+    const parsed = std.json.parseFromSlice(LinuxElementTreePayload, allocator, result.stdout, .{ .ignore_unknown_fields = true }) catch |err| {
+        const detail = try std.fmt.allocPrint(allocator, "parse_error={s}; detail={s}", .{ @errorName(err), linuxTextSnippet(result.stdout) });
+        return core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.system_error, "Failed to parse Linux accessibility element tree JSON.", detail);
+    };
+    const payload = parsed.value;
+
+    if (!payload.ok) {
+        return core.model.failure(core.model.ElementTree, "element.tree", payload.code orelse core.errors.codes.system_error, payload.message orelse "Linux accessibility inspection failed.", payload.detail);
+    }
+
+    const root = payload.root orelse {
+        return core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.system_error, "Linux accessibility inspection did not return a root element.", linuxTextSnippet(result.stdout));
+    };
+
+    return core.model.success("element.tree", core.model.ElementTree{
+        .window_handle = payload.window_handle orelse window_handle orelse 0,
+        .window_title = payload.window_title orelse try allocator.dupe(u8, ""),
+        .generated_at = payload.generated_at orelse try allocator.dupe(u8, ""),
+        .max_depth = payload.max_depth orelse resolved_max_depth,
+        .max_children = payload.max_children orelse resolved_max_children,
+        .max_nodes = payload.max_nodes orelse resolved_max_nodes,
+        .include_offscreen = payload.include_offscreen orelse include_offscreen,
+        .root = root,
+    });
+}
+
+pub fn elementClick(allocator: std.mem.Allocator, element_id: []const u8, window_handle: ?u64, button: core.model.MouseButton, move_duration_ms: ?u32) !core.model.AckResponse {
+    if (element_id.len == 0) {
+        return core.model.failure(core.model.Ack, "element.click", core.errors.codes.invalid_args, "element_id cannot be empty.", null);
+    }
+
+    const handle_text = try std.fmt.allocPrint(allocator, "{d}", .{window_handle orelse 0});
+    defer allocator.free(handle_text);
+
+    const result = try linuxRunAccessibilityPython(allocator, linuxAccessibilityPythonScript, &[_][]const u8{
+        "lookup",
+        handle_text,
+        "0",
+        "0",
+        "0",
+        "0",
+        element_id,
+    });
+    defer allocator.free(result.stdout);
+    defer allocator.free(result.stderr);
+
+    if (result.missing) {
+        return core.model.failure(core.model.Ack, "element.click", core.errors.codes.not_implemented, "Linux semantic element lookup requires python3/python with pyatspi in an interactive AT-SPI desktop session.", if (result.stderr.len > 0) result.stderr else null);
+    }
+    if (result.exit_code != 0) {
+        return core.model.failure(core.model.Ack, "element.click", core.errors.codes.system_error, "Linux accessibility lookup command failed.", try linuxCommandDetail(allocator, result));
+    }
+
+    const parsed = std.json.parseFromSlice(LinuxElementLookupPayload, allocator, result.stdout, .{ .ignore_unknown_fields = true }) catch |err| {
+        const detail = try std.fmt.allocPrint(allocator, "parse_error={s}; detail={s}", .{ @errorName(err), linuxTextSnippet(result.stdout) });
+        return core.model.failure(core.model.Ack, "element.click", core.errors.codes.system_error, "Failed to parse Linux accessibility lookup JSON.", detail);
+    };
+    const payload = parsed.value;
+
+    if (!payload.ok) {
+        return core.model.failure(core.model.Ack, "element.click", payload.code orelse core.errors.codes.system_error, payload.message orelse "Linux accessibility lookup failed.", payload.detail);
+    }
+
+    const bounds = payload.bounds orelse {
+        return core.model.failure(core.model.Ack, "element.click", core.errors.codes.system_error, "Linux accessibility lookup did not include bounds.", linuxTextSnippet(result.stdout));
+    };
+    const center = payload.center orelse {
+        return core.model.failure(core.model.Ack, "element.click", core.errors.codes.system_error, "Linux accessibility lookup did not include a click center.", linuxTextSnippet(result.stdout));
+    };
+
+    if ((payload.is_offscreen orelse false) or bounds.width <= 0 or bounds.height <= 0) {
+        return core.model.failure(core.model.Ack, "element.click", core.errors.codes.unsafe_operation, "The requested Linux element does not currently expose a clickable on-screen bounding rectangle.", try std.fmt.allocPrint(allocator, "element_id={s}; is_offscreen={s}; bounds={d},{d},{d},{d}", .{ element_id, if (payload.is_offscreen orelse false) "true" else "false", bounds.left, bounds.top, bounds.right, bounds.bottom }));
+    }
+
+    const resolved_window_handle = payload.window_handle orelse window_handle orelse 0;
+    if (resolved_window_handle != 0) {
+        linuxActivateElementWindow(allocator, resolved_window_handle) catch |err| {
+            return linuxAckToolFailure(allocator, "element.click", "Linux semantic element click requires xdotool on an X11/XWayland session.", err);
+        };
+    }
+
+    const move_response = try mouseMove(allocator, center.x, center.y, move_duration_ms orelse 120, 0, 6);
+    if (!move_response.ok) {
+        const failure = move_response.failure orelse core.errors.ApiError{ .code = core.errors.codes.system_error, .message = "mouse.move failed while clicking a Linux semantic element.", .detail = null };
+        return core.model.failure(core.model.Ack, "element.click", failure.code, failure.message, failure.detail);
+    }
+
+    const click_response = try mouseClick(allocator, button, 1);
+    if (!click_response.ok) {
+        const failure = click_response.failure orelse core.errors.ApiError{ .code = core.errors.codes.system_error, .message = "mouse.click failed while clicking a Linux semantic element.", .detail = null };
+        return core.model.failure(core.model.Ack, "element.click", failure.code, failure.message, failure.detail);
+    }
+
+    return core.model.success("element.click", core.model.Ack{
+        .message = "Element center click sent.",
+        .detail = try std.fmt.allocPrint(allocator, "window_handle=0x{x}; element_id={s}; name={s}; control_type={s}; center={d},{d}; button={s}", .{ resolved_window_handle, payload.element_id orelse element_id, payload.name orelse "", payload.control_type orelse "", center.x, center.y, linuxMouseButtonName(button) }),
+    });
+}
+
 pub fn waitWindow(allocator: std.mem.Allocator, title: []const u8, timeout_ms: u64, match_mode: core.model.StringMatchMode, foreground_only: bool) !core.model.WaitWindowResponse {
     const start_ms = nowMs();
     while (true) {
@@ -1680,6 +1822,332 @@ const LinuxMemorySnapshot = struct {
     used_physical: u64,
     memory_load_percent: u32,
 };
+
+const LinuxElementTreePayload = struct {
+    ok: bool,
+    code: ?[]const u8 = null,
+    message: ?[]const u8 = null,
+    detail: ?[]const u8 = null,
+    window_handle: ?u64 = null,
+    window_title: ?[]const u8 = null,
+    generated_at: ?[]const u8 = null,
+    max_depth: ?u32 = null,
+    max_children: ?u32 = null,
+    max_nodes: ?u32 = null,
+    include_offscreen: ?bool = null,
+    root: ?core.model.UiElementNode = null,
+};
+
+const LinuxElementLookupPayload = struct {
+    ok: bool,
+    code: ?[]const u8 = null,
+    message: ?[]const u8 = null,
+    detail: ?[]const u8 = null,
+    window_handle: ?u64 = null,
+    element_id: ?[]const u8 = null,
+    name: ?[]const u8 = null,
+    control_type: ?[]const u8 = null,
+    is_offscreen: ?bool = null,
+    bounds: ?core.model.Rect = null,
+    center: ?core.model.Point = null,
+};
+
+const linuxAccessibilityPythonScript =
+    \\import datetime
+    \\import json
+    \\import sys
+    \\
+    \\try:
+    \\    import pyatspi
+    \\except Exception as exc:
+    \\    json.dump({
+    \\        'ok': False,
+    \\        'code': 'not_implemented',
+    \\        'message': 'Linux semantic element inspection requires pyatspi in the active desktop accessibility session.',
+    \\        'detail': str(exc),
+    \\    }, sys.stdout, separators=(',', ':'))
+    \\    raise SystemExit(0)
+    \\
+    \\WINDOW_ROLES = {'frame', 'window', 'dialog', 'alert', 'application', 'panel'}
+    \\
+    \\def safe_call(fn, default=None):
+    \\    try:
+    \\        return fn()
+    \\    except Exception:
+    \\        return default
+    \\
+    \\def safe_text(value):
+    \\    if value is None:
+    \\        return ''
+    \\    return str(value)
+    \\
+    \\def child_list(acc):
+    \\    count = safe_call(lambda: acc.childCount, 0) or 0
+    \\    return [safe_call(lambda i=i: acc[i], None) for i in range(count) if safe_call(lambda i=i: acc[i], None) is not None]
+    \\
+    \\def parse_attributes(acc):
+    \\    out = {}
+    \\    for item in safe_call(lambda: acc.getAttributes(), []) or []:
+    \\        text = safe_text(item)
+    \\        if ':' not in text:
+    \\            continue
+    \\        key, value = text.split(':', 1)
+    \\        out[key] = value
+    \\    return out
+    \\
+    \\def role_name(acc):
+    \\    return safe_text(safe_call(lambda: acc.getRoleName(), ''))
+    \\
+    \\def state_set(acc):
+    \\    return safe_call(lambda: acc.getState(), None)
+    \\
+    \\def has_state(acc, wanted):
+    \\    state = state_set(acc)
+    \\    return bool(state and safe_call(lambda: state.contains(wanted), False))
+    \\
+    \\def accessible_handle(acc):
+    \\    attrs = parse_attributes(acc)
+    \\    for key in ('window:xid', 'xid', 'window-id'):
+    \\        text = attrs.get(key)
+    \\        if not text:
+    \\            continue
+    \\        try:
+    \\            return int(text, 0)
+    \\        except Exception:
+    \\            pass
+    \\    return 0
+    \\
+    \\def bounds_from_accessible(acc):
+    \\    try:
+    \\        component = acc.queryComponent()
+    \\        extents = component.getExtents(pyatspi.XY_SCREEN)
+    \\        left = int(round(extents.x))
+    \\        top = int(round(extents.y))
+    \\        width = int(round(extents.width))
+    \\        height = int(round(extents.height))
+    \\    except Exception:
+    \\        left = 0
+    \\        top = 0
+    \\        width = 0
+    \\        height = 0
+    \\    return {
+    \\        'left': left,
+    \\        'top': top,
+    \\        'right': left + width,
+    \\        'bottom': top + height,
+    \\        'width': width,
+    \\        'height': height,
+    \\    }
+    \\
+    \\def center_from_bounds(bounds):
+    \\    return {
+    \\        'x': int(round((bounds['left'] + bounds['right']) / 2.0)),
+    \\        'y': int(round((bounds['top'] + bounds['bottom']) / 2.0)),
+    \\    }
+    \\
+    \\def framework_id(acc, attrs):
+    \\    return safe_text(attrs.get('toolkit') or attrs.get('toolkit-name') or attrs.get('framework') or '')
+    \\
+    \\def automation_id(attrs):
+    \\    for key in ('automation-id', 'id', 'accessible-id', 'identifier'):
+    \\        value = attrs.get(key)
+    \\        if value:
+    \\            return safe_text(value)
+    \\    return ''
+    \\
+    \\def ascend_to_window(acc):
+    \\    current = acc
+    \\    fallback = acc
+    \\    while current is not None:
+    \\        fallback = current
+    \\        if accessible_handle(current) != 0 or role_name(current).lower() in WINDOW_ROLES:
+    \\            return current
+    \\        current = safe_call(lambda: current.parent, None)
+    \\    return fallback
+    \\
+    \\def walk(acc):
+    \\    yield acc
+    \\    for child in child_list(acc):
+    \\        for descendant in walk(child):
+    \\            yield descendant
+    \\
+    \\def desktop_roots():
+    \\    desktop = safe_call(lambda: pyatspi.Registry.getDesktop(0), None)
+    \\    if desktop is None:
+    \\        return []
+    \\    count = safe_call(lambda: desktop.childCount, 0) or 0
+    \\    return [safe_call(lambda i=i: desktop[i], None) for i in range(count) if safe_call(lambda i=i: desktop[i], None) is not None]
+    \\
+    \\def find_window_by_handle(handle):
+    \\    if handle == 0:
+    \\        return None
+    \\    for root in desktop_roots():
+    \\        for acc in walk(root):
+    \\            if accessible_handle(acc) == handle:
+    \\                return ascend_to_window(acc)
+    \\    return None
+    \\
+    \\def find_active_window():
+    \\    candidate = None
+    \\    for root in desktop_roots():
+    \\        for acc in walk(root):
+    \\            if has_state(acc, pyatspi.STATE_ACTIVE) or has_state(acc, pyatspi.STATE_FOCUSED):
+    \\                resolved = ascend_to_window(acc)
+    \\                if role_name(resolved).lower() in WINDOW_ROLES or accessible_handle(resolved) != 0:
+    \\                    return resolved
+    \\                if candidate is None:
+    \\                    candidate = resolved
+    \\    return candidate
+    \\
+    \\def resolve_path(root, path):
+    \\    if not path or path == 'root':
+    \\        return root
+    \\    current = root
+    \\    for segment in [item for item in path.split('/') if item and item != 'root']:
+    \\        try:
+    \\            wanted = int(segment)
+    \\        except Exception:
+    \\            raise LookupError('Invalid element path segment %s.' % segment)
+    \\        children = child_list(current)
+    \\        if wanted < 0 or wanted >= len(children):
+    \\            raise LookupError('Element path segment %s was not found.' % segment)
+    \\        current = children[wanted]
+    \\    return current
+    \\
+    \\def make_node(acc, path, depth, max_depth, max_children, max_nodes, include_offscreen, counters):
+    \\    if counters['emitted'] >= max_nodes:
+    \\        return None
+    \\    counters['emitted'] += 1
+    \\    attrs = parse_attributes(acc)
+    \\    bounds = bounds_from_accessible(acc)
+    \\    offscreen = not has_state(acc, pyatspi.STATE_SHOWING)
+    \\    node = {
+    \\        'element_id': path,
+    \\        'name': safe_text(safe_call(lambda: acc.name, '')),
+    \\        'automation_id': automation_id(attrs),
+    \\        'class_name': safe_text(attrs.get('class') or attrs.get('subrole') or ''),
+    \\        'control_type': role_name(acc),
+    \\        'framework_id': framework_id(acc, attrs),
+    \\        'is_enabled': has_state(acc, pyatspi.STATE_ENABLED),
+    \\        'is_offscreen': offscreen,
+    \\        'has_keyboard_focus': has_state(acc, pyatspi.STATE_FOCUSED),
+    \\        'bounds': bounds,
+    \\        'center': center_from_bounds(bounds),
+    \\        'children': [],
+    \\    }
+    \\    if depth < max_depth and counters['emitted'] < max_nodes:
+    \\        raw_index = 0
+    \\        for child in child_list(acc):
+    \\            if len(node['children']) >= max_children or counters['emitted'] >= max_nodes:
+    \\                break
+    \\            child_offscreen = not has_state(child, pyatspi.STATE_SHOWING)
+    \\            if include_offscreen or not child_offscreen:
+    \\                child_path = ('root/%d' % raw_index) if path == 'root' else ('%s/%d' % (path, raw_index))
+    \\                child_node = make_node(child, child_path, depth + 1, max_depth, max_children, max_nodes, include_offscreen, counters)
+    \\                if child_node is not None:
+    \\                    node['children'].append(child_node)
+    \\            raw_index += 1
+    \\    return node
+    \\
+    \\def main(argv):
+    \\    mode = argv[1]
+    \\    target_handle = int(argv[2])
+    \\    max_depth = int(argv[3])
+    \\    max_children = int(argv[4])
+    \\    max_nodes = int(argv[5])
+    \\    include_offscreen = argv[6] == '1'
+    \\    element_id = argv[7] if len(argv) > 7 else 'root'
+    \\    root = find_window_by_handle(target_handle) or find_active_window()
+    \\    if root is None:
+    \\        raise LookupError('No active Linux accessibility window could be resolved.')
+    \\    resolved_handle = accessible_handle(root) or target_handle
+    \\    root_name = safe_text(safe_call(lambda: root.name, ''))
+    \\    if mode == 'tree':
+    \\        payload = {
+    \\            'ok': True,
+    \\            'window_handle': resolved_handle,
+    \\            'window_title': root_name,
+    \\            'generated_at': datetime.datetime.utcnow().isoformat() + 'Z',
+    \\            'max_depth': max_depth,
+    \\            'max_children': max_children,
+    \\            'max_nodes': max_nodes,
+    \\            'include_offscreen': include_offscreen,
+    \\            'root': make_node(root, 'root', 0, max_depth, max_children, max_nodes, include_offscreen, {'emitted': 0}),
+    \\        }
+    \\    elif mode == 'lookup':
+    \\        target = resolve_path(root, element_id)
+    \\        bounds = bounds_from_accessible(target)
+    \\        payload = {
+    \\            'ok': True,
+    \\            'window_handle': resolved_handle,
+    \\            'element_id': element_id,
+    \\            'name': safe_text(safe_call(lambda: target.name, '')),
+    \\            'control_type': role_name(target),
+    \\            'is_offscreen': not has_state(target, pyatspi.STATE_SHOWING),
+    \\            'bounds': bounds,
+    \\            'center': center_from_bounds(bounds),
+    \\        }
+    \\    else:
+    \\        raise LookupError('Unsupported accessibility mode %s.' % mode)
+    \\    json.dump(payload, sys.stdout, separators=(',', ':'))
+    \\
+    \\try:
+    \\    main(sys.argv)
+    \\except LookupError as exc:
+    \\    json.dump({'ok': False, 'code': 'not_found', 'message': 'Linux accessibility lookup failed.', 'detail': str(exc)}, sys.stdout, separators=(',', ':'))
+    \\except Exception as exc:
+    \\    json.dump({'ok': False, 'code': 'system_error', 'message': 'Linux accessibility command failed.', 'detail': str(exc)}, sys.stdout, separators=(',', ':'))
+;
+
+fn linuxRunAccessibilityPython(allocator: std.mem.Allocator, script: []const u8, args: []const []const u8) !LinuxCommandResult {
+    const candidates = [_][]const u8{ "python3", "python" };
+
+    for (candidates) |python_cmd| {
+        var argv = std.ArrayList([]const u8).empty;
+        defer argv.deinit(allocator);
+        try argv.append(allocator, python_cmd);
+        try argv.append(allocator, "-c");
+        try argv.append(allocator, script);
+        for (args) |arg| {
+            try argv.append(allocator, arg);
+        }
+
+        const result = try linuxRunCommand(allocator, argv.items, null);
+        if (result.missing) {
+            allocator.free(result.stdout);
+            allocator.free(result.stderr);
+            continue;
+        }
+        return result;
+    }
+
+    return .{
+        .stdout = try allocator.dupe(u8, ""),
+        .stderr = try allocator.dupe(u8, "python3/python was not found."),
+        .exit_code = -1,
+        .missing = true,
+    };
+}
+
+fn linuxActivateElementWindow(allocator: std.mem.Allocator, handle: u64) !void {
+    const handle_text = try linuxWindowIdText(allocator, handle);
+    defer allocator.free(handle_text);
+    try linuxRunWindowTool(allocator, &[_][]const u8{ "xdotool", "windowactivate", "--sync", handle_text }, "element.click", "Linux semantic element click requires xdotool on an X11/XWayland session.");
+}
+
+fn linuxMouseButtonName(button: core.model.MouseButton) []const u8 {
+    return switch (button) {
+        .left => "left",
+        .right => "right",
+        .middle => "middle",
+    };
+}
+
+fn linuxTextSnippet(text: []const u8) []const u8 {
+    const trimmed = std.mem.trim(u8, text, " \t\r\n");
+    if (trimmed.len <= 512) return trimmed;
+    return trimmed[0..512];
+}
 
 fn linuxRunCommand(allocator: std.mem.Allocator, argv: []const []const u8, stdin_bytes: ?[]const u8) !LinuxCommandResult {
     var child = std.process.Child.init(argv, allocator);

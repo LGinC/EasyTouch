@@ -555,6 +555,78 @@ fn handleToolCall(allocator: std.mem.Allocator, stdout: *std.Io.Writer, id: Json
         try writeToolResponse(allocator, stdout, id, try runtime.screenDisplays(allocator));
         return;
     }
+    if (std.mem.eql(u8, tool_name, "element_tree")) {
+        const window_handle = readOptionalU64(arguments, "window_handle") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.invalid_args, "window_handle must be a non-negative integer when provided.", null));
+            return;
+        };
+        const max_depth = readOptionalU32(arguments, "max_depth") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.invalid_args, "max_depth must be a non-negative 32-bit integer when provided.", null));
+            return;
+        };
+        const max_children = readOptionalU32(arguments, "max_children") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.invalid_args, "max_children must be a non-negative 32-bit integer when provided.", null));
+            return;
+        };
+        const max_nodes = readOptionalU32(arguments, "max_nodes") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.invalid_args, "max_nodes must be a non-negative 32-bit integer when provided.", null));
+            return;
+        };
+        const include_offscreen = readOptionalBool(arguments, "include_offscreen") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.invalid_args, "include_offscreen must be a boolean when provided.", null));
+            return;
+        } orelse false;
+        try writeToolResponse(allocator, stdout, id, try runtime.elementTree(allocator, window_handle, max_depth, max_children, max_nodes, include_offscreen));
+        return;
+    }
+    if (std.mem.eql(u8, tool_name, "element_click")) {
+        const element_id = readRequiredString(arguments, "element_id") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "element.click", core.errors.codes.invalid_args, "element_id is required and must be a string.", null));
+            return;
+        } orelse unreachable;
+        const window_handle = readOptionalU64(arguments, "window_handle") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "element.click", core.errors.codes.invalid_args, "window_handle must be a non-negative integer when provided.", null));
+            return;
+        };
+        const button = (readOptionalMouseButton(arguments, "button") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "element.click", core.errors.codes.invalid_args, "button must be one of left, right, or middle when provided.", null));
+            return;
+        }) orelse .left;
+        const move_duration_ms = readOptionalU32(arguments, "move_duration_ms") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "element.click", core.errors.codes.invalid_args, "move_duration_ms must be a non-negative 32-bit integer when provided.", null));
+            return;
+        };
+        try writeToolResponse(allocator, stdout, id, try runtime.elementClick(allocator, element_id, window_handle, button, move_duration_ms));
+        return;
+    }
+    if (std.mem.eql(u8, tool_name, "element_find")) {
+        const query = readElementQuery(arguments) catch |err| {
+            try writeToolResponse(allocator, stdout, id, mcpElementQueryFailure(core.model.ElementMatch, "element.find", err));
+            return;
+        };
+        try writeToolResponse(allocator, stdout, id, try runtime.elementFind(allocator, query));
+        return;
+    }
+    if (std.mem.eql(u8, tool_name, "element_invoke")) {
+        const element_id = readRequiredString(arguments, "element_id") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "element.invoke", core.errors.codes.invalid_args, "element_id is required and must be a string.", null));
+            return;
+        } orelse unreachable;
+        const window_handle = readOptionalU64(arguments, "window_handle") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "element.invoke", core.errors.codes.invalid_args, "window_handle must be a non-negative integer when provided.", null));
+            return;
+        };
+        const action = readOptionalString(arguments, "action") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "element.invoke", core.errors.codes.invalid_args, "action must be a string when provided.", null));
+            return;
+        };
+        const move_duration_ms = readOptionalU32(arguments, "move_duration_ms") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.Ack, "element.invoke", core.errors.codes.invalid_args, "move_duration_ms must be a non-negative 32-bit integer when provided.", null));
+            return;
+        };
+        try writeToolResponse(allocator, stdout, id, try runtime.elementInvoke(allocator, element_id, window_handle, action, move_duration_ms));
+        return;
+    }
     if (std.mem.eql(u8, tool_name, "wait_window")) {
         const title = readRequiredString(arguments, "title") catch {
             try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.WaitWindow, "wait.window", core.errors.codes.invalid_args, "title is required and must be a string.", null));
@@ -573,6 +645,22 @@ fn handleToolCall(allocator: std.mem.Allocator, stdout: *std.Io.Writer, id: Json
             return;
         } orelse false;
         try writeToolResponse(allocator, stdout, id, try runtime.waitWindow(allocator, title, timeout_ms, match_mode, foreground_only));
+        return;
+    }
+    if (std.mem.eql(u8, tool_name, "wait_element")) {
+        const query = readElementQuery(arguments) catch |err| {
+            try writeToolResponse(allocator, stdout, id, mcpElementQueryFailure(core.model.WaitElement, "wait.element", err));
+            return;
+        };
+        const timeout_ms = readOptionalU64(arguments, "timeout_ms") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.WaitElement, "wait.element", core.errors.codes.invalid_args, "timeout_ms must be a non-negative integer when provided.", null));
+            return;
+        } orelse 2000;
+        const poll_interval_ms = readOptionalU32(arguments, "poll_interval_ms") catch {
+            try writeToolResponse(allocator, stdout, id, core.model.failure(core.model.WaitElement, "wait.element", core.errors.codes.invalid_args, "poll_interval_ms must be a non-negative 32-bit integer when provided.", null));
+            return;
+        };
+        try writeToolResponse(allocator, stdout, id, try runtime.waitElement(allocator, query, timeout_ms, poll_interval_ms));
         return;
     }
     if (std.mem.eql(u8, tool_name, "wait_focus")) {
@@ -986,6 +1074,34 @@ fn buildInputSchema(allocator: std.mem.Allocator, tool_name: []const u8) !JsonVa
     if (std.mem.eql(u8, tool_name, "screen_displays")) {
         return buildSchema(allocator, &.{}, &.{});
     }
+    if (std.mem.eql(u8, tool_name, "element_tree")) {
+        return buildSchema(allocator, &.{
+            .{ .key = "window_handle", .type_name = "integer", .description = "Optional target top-level window handle. Defaults to the current foreground window." },
+            .{ .key = "max_depth", .type_name = "integer", .description = "Maximum UI tree depth to expand. Defaults to 4." },
+            .{ .key = "max_children", .type_name = "integer", .description = "Maximum returned children per node. Defaults to 20." },
+            .{ .key = "max_nodes", .type_name = "integer", .description = "Maximum total nodes returned in the snapshot. Defaults to 250." },
+            .{ .key = "include_offscreen", .type_name = "boolean", .description = "Include off-screen accessibility nodes in the returned tree." },
+        }, &.{});
+    }
+    if (std.mem.eql(u8, tool_name, "element_click")) {
+        return buildSchema(allocator, &.{
+            .{ .key = "element_id", .type_name = "string", .description = "Element id from element_tree, for example root/0/3." },
+            .{ .key = "window_handle", .type_name = "integer", .description = "Optional target window handle. Defaults to the current foreground window." },
+            .{ .key = "button", .type_name = "string", .description = "Mouse button to click on the element center.", .enum_values = &.{ "left", "right", "middle" } },
+            .{ .key = "move_duration_ms", .type_name = "integer", .description = "Optional cursor move duration before the click. Defaults to 120." },
+        }, &.{"element_id"});
+    }
+    if (std.mem.eql(u8, tool_name, "element_find")) {
+        return buildSchema(allocator, &elementQuerySchemaProperties, &.{});
+    }
+    if (std.mem.eql(u8, tool_name, "element_invoke")) {
+        return buildSchema(allocator, &.{
+            .{ .key = "element_id", .type_name = "string", .description = "Element id from element_tree, for example root/0/3." },
+            .{ .key = "window_handle", .type_name = "integer", .description = "Optional target window handle. Defaults to the current foreground window." },
+            .{ .key = "action", .type_name = "string", .description = "Optional semantic action hint. Supported values are invoke, click, or press.", .enum_values = &.{ "invoke", "click", "press" } },
+            .{ .key = "move_duration_ms", .type_name = "integer", .description = "Optional cursor move duration before the fallback click. Defaults to 120." },
+        }, &.{"element_id"});
+    }
     if (std.mem.eql(u8, tool_name, "wait_window")) {
         return buildSchema(allocator, &.{
             .{ .key = "title", .type_name = "string", .description = "Window title text to wait for." },
@@ -993,6 +1109,9 @@ fn buildInputSchema(allocator: std.mem.Allocator, tool_name: []const u8) !JsonVa
             .{ .key = "match", .type_name = "string", .description = "How to compare the title text.", .enum_values = &.{ "contains", "exact" } },
             .{ .key = "foreground_only", .type_name = "boolean", .description = "Only match the current foreground window." },
         }, &.{"title"});
+    }
+    if (std.mem.eql(u8, tool_name, "wait_element")) {
+        return buildSchema(allocator, &waitElementSchemaProperties, &.{});
     }
     if (std.mem.eql(u8, tool_name, "wait_focus")) {
         return buildSchema(allocator, &.{
@@ -1149,6 +1268,81 @@ fn readOptionalMouseButton(arguments: ?JsonObject, key: []const u8) error{Invali
 fn readOptionalMatchMode(arguments: ?JsonObject) error{InvalidType}!?core.model.StringMatchMode {
     const value = (try readOptionalString(arguments, "match")) orelse return null;
     return core.model.parseMatchMode(value) orelse error.InvalidType;
+}
+
+const ElementQueryReadError = error{
+    InvalidType,
+    InvalidWindowHandle,
+    InvalidMatchMode,
+    InvalidMaxDepth,
+    InvalidMaxChildren,
+    InvalidMaxNodes,
+};
+
+const elementQuerySchemaProperties = [_]PropertySpec{
+    .{ .key = "window_handle", .type_name = "integer", .description = "Optional target top-level window handle. Defaults to the current foreground window." },
+    .{ .key = "element_id", .type_name = "string", .description = "Match one exact element id from element_tree, for example root/0/3." },
+    .{ .key = "name", .type_name = "string", .description = "Match the accessibility name for one element." },
+    .{ .key = "automation_id", .type_name = "string", .description = "Match a platform automation identifier such as AutomationId or AXIdentifier when exposed." },
+    .{ .key = "class_name", .type_name = "string", .description = "Match one class, subrole, or toolkit-specific element class string." },
+    .{ .key = "control_type", .type_name = "string", .description = "Match one control type or role name such as Button, Edit, dialog, or push button." },
+    .{ .key = "framework_id", .type_name = "string", .description = "Match one framework or toolkit identifier when exposed by the platform." },
+    .{ .key = "match", .type_name = "string", .description = "How to compare string selectors.", .enum_values = &.{ "contains", "exact" } },
+    .{ .key = "enabled_only", .type_name = "boolean", .description = "Only match enabled elements." },
+    .{ .key = "focus_only", .type_name = "boolean", .description = "Only match elements that currently hold keyboard focus." },
+    .{ .key = "max_depth", .type_name = "integer", .description = "Maximum UI tree depth to expand while searching. Defaults to the platform tree default." },
+    .{ .key = "max_children", .type_name = "integer", .description = "Maximum returned children per node while searching. Defaults to the platform tree default." },
+    .{ .key = "max_nodes", .type_name = "integer", .description = "Maximum total nodes returned in the snapshot used for search. Defaults to the platform tree default." },
+    .{ .key = "include_offscreen", .type_name = "boolean", .description = "Include off-screen accessibility nodes in the search snapshot." },
+};
+
+const waitElementSchemaProperties = [_]PropertySpec{
+    .{ .key = "window_handle", .type_name = "integer", .description = "Optional target top-level window handle. Defaults to the current foreground window." },
+    .{ .key = "element_id", .type_name = "string", .description = "Match one exact element id from element_tree, for example root/0/3." },
+    .{ .key = "name", .type_name = "string", .description = "Match the accessibility name for one element." },
+    .{ .key = "automation_id", .type_name = "string", .description = "Match a platform automation identifier such as AutomationId or AXIdentifier when exposed." },
+    .{ .key = "class_name", .type_name = "string", .description = "Match one class, subrole, or toolkit-specific element class string." },
+    .{ .key = "control_type", .type_name = "string", .description = "Match one control type or role name such as Button, Edit, dialog, or push button." },
+    .{ .key = "framework_id", .type_name = "string", .description = "Match one framework or toolkit identifier when exposed by the platform." },
+    .{ .key = "match", .type_name = "string", .description = "How to compare string selectors.", .enum_values = &.{ "contains", "exact" } },
+    .{ .key = "enabled_only", .type_name = "boolean", .description = "Only match enabled elements." },
+    .{ .key = "focus_only", .type_name = "boolean", .description = "Only match elements that currently hold keyboard focus." },
+    .{ .key = "timeout_ms", .type_name = "integer", .description = "Timeout in milliseconds before returning timeout." },
+    .{ .key = "poll_interval_ms", .type_name = "integer", .description = "Polling interval in milliseconds. Defaults to 200." },
+    .{ .key = "max_depth", .type_name = "integer", .description = "Maximum UI tree depth to expand while searching. Defaults to the platform tree default." },
+    .{ .key = "max_children", .type_name = "integer", .description = "Maximum returned children per node while searching. Defaults to the platform tree default." },
+    .{ .key = "max_nodes", .type_name = "integer", .description = "Maximum total nodes returned in the snapshot used for search. Defaults to the platform tree default." },
+    .{ .key = "include_offscreen", .type_name = "boolean", .description = "Include off-screen accessibility nodes in the search snapshot." },
+};
+
+fn readElementQuery(arguments: ?JsonObject) ElementQueryReadError!core.model.ElementQuery {
+    return .{
+        .window_handle = readOptionalU64(arguments, "window_handle") catch return error.InvalidWindowHandle,
+        .element_id = try readOptionalString(arguments, "element_id"),
+        .name = try readOptionalString(arguments, "name"),
+        .automation_id = try readOptionalString(arguments, "automation_id"),
+        .class_name = try readOptionalString(arguments, "class_name"),
+        .control_type = try readOptionalString(arguments, "control_type"),
+        .framework_id = try readOptionalString(arguments, "framework_id"),
+        .match_mode = (readOptionalMatchMode(arguments) catch return error.InvalidMatchMode) orelse .contains,
+        .max_depth = readOptionalU32(arguments, "max_depth") catch return error.InvalidMaxDepth,
+        .max_children = readOptionalU32(arguments, "max_children") catch return error.InvalidMaxChildren,
+        .max_nodes = readOptionalU32(arguments, "max_nodes") catch return error.InvalidMaxNodes,
+        .include_offscreen = (try readOptionalBool(arguments, "include_offscreen")) orelse false,
+        .enabled_only = (try readOptionalBool(arguments, "enabled_only")) orelse false,
+        .focus_only = (try readOptionalBool(arguments, "focus_only")) orelse false,
+    };
+}
+
+fn mcpElementQueryFailure(comptime T: type, capability: []const u8, err: ElementQueryReadError) core.model.Envelope(T) {
+    return switch (err) {
+        error.InvalidType => core.model.failure(T, capability, core.errors.codes.invalid_args, "Element query fields must use the documented JSON types.", null),
+        error.InvalidWindowHandle => core.model.failure(T, capability, core.errors.codes.invalid_args, "window_handle must be a non-negative integer when provided.", null),
+        error.InvalidMatchMode => core.model.failure(T, capability, core.errors.codes.invalid_args, "match must be 'contains' or 'exact' when provided.", null),
+        error.InvalidMaxDepth => core.model.failure(T, capability, core.errors.codes.invalid_args, "max_depth must be a non-negative 32-bit integer when provided.", null),
+        error.InvalidMaxChildren => core.model.failure(T, capability, core.errors.codes.invalid_args, "max_children must be a non-negative 32-bit integer when provided.", null),
+        error.InvalidMaxNodes => core.model.failure(T, capability, core.errors.codes.invalid_args, "max_nodes must be a non-negative 32-bit integer when provided.", null),
+    };
 }
 
 fn toolResponseSummary(allocator: std.mem.Allocator, response: anytype) ![]const u8 {

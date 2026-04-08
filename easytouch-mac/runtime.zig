@@ -1181,6 +1181,160 @@ pub fn screenDisplays(allocator: std.mem.Allocator) !core.model.DisplayListRespo
     return macos.screenDisplays(allocator);
 }
 
+pub fn elementTree(allocator: std.mem.Allocator, window_handle: ?u64, max_depth: ?u32, max_children: ?u32, max_nodes: ?u32, include_offscreen: bool) !core.model.ElementTreeResponse {
+    const target = macResolveElementTargetWindow(allocator, window_handle) catch |err| return macElementResolutionFailure(core.model.ElementTree, "element.tree", window_handle, err);
+
+    const resolved_max_depth = max_depth orelse 4;
+    if (resolved_max_depth == 0 or resolved_max_depth > 12) {
+        return core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.invalid_args, "max_depth must be in range 1..12.", null);
+    }
+
+    const resolved_max_children = max_children orelse 20;
+    if (resolved_max_children == 0 or resolved_max_children > 100) {
+        return core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.invalid_args, "max_children must be in range 1..100.", null);
+    }
+
+    const resolved_max_nodes = max_nodes orelse 250;
+    if (resolved_max_nodes == 0 or resolved_max_nodes > 1500) {
+        return core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.invalid_args, "max_nodes must be in range 1..1500.", null);
+    }
+
+    const pid_text = try std.fmt.allocPrint(allocator, "{d}", .{target.pid});
+    defer allocator.free(pid_text);
+    const depth_text = try std.fmt.allocPrint(allocator, "{d}", .{resolved_max_depth});
+    defer allocator.free(depth_text);
+    const children_text = try std.fmt.allocPrint(allocator, "{d}", .{resolved_max_children});
+    defer allocator.free(children_text);
+    const nodes_text = try std.fmt.allocPrint(allocator, "{d}", .{resolved_max_nodes});
+    defer allocator.free(nodes_text);
+    const handle_text = try std.fmt.allocPrint(allocator, "{d}", .{target.handle});
+    defer allocator.free(handle_text);
+
+    const result = try macRunJavaScript(allocator, macAccessibilityJavaScript, &[_][]const u8{
+        "tree",
+        pid_text,
+        target.title,
+        depth_text,
+        children_text,
+        nodes_text,
+        if (include_offscreen) "1" else "0",
+        "root",
+        handle_text,
+    });
+    defer allocator.free(result.stdout);
+    defer allocator.free(result.stderr);
+
+    if (result.missing) {
+        return core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.not_implemented, "macOS semantic element inspection requires osascript and Accessibility permission for the host process.", null);
+    }
+    if (result.exit_code != 0) {
+        return core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.permission_denied, "macOS accessibility inspection command failed. Check Accessibility and Automation permissions for the host process.", try macCommandDetail(allocator, result));
+    }
+
+    const parsed = std.json.parseFromSlice(MacElementTreePayload, allocator, result.stdout, .{ .ignore_unknown_fields = true }) catch |err| {
+        const detail = try std.fmt.allocPrint(allocator, "parse_error={s}; detail={s}", .{ @errorName(err), macTextSnippet(result.stdout) });
+        return core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.system_error, "Failed to parse macOS accessibility element tree JSON.", detail);
+    };
+    const payload = parsed.value;
+
+    if (!payload.ok) {
+        return core.model.failure(core.model.ElementTree, "element.tree", payload.code orelse core.errors.codes.system_error, payload.message orelse "macOS accessibility inspection failed.", payload.detail);
+    }
+
+    const root = payload.root orelse {
+        return core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.system_error, "macOS accessibility inspection did not return a root element.", macTextSnippet(result.stdout));
+    };
+
+    return core.model.success("element.tree", core.model.ElementTree{
+        .window_handle = payload.window_handle orelse target.handle,
+        .window_title = payload.window_title orelse target.title,
+        .generated_at = payload.generated_at orelse try allocator.dupe(u8, ""),
+        .max_depth = payload.max_depth orelse resolved_max_depth,
+        .max_children = payload.max_children orelse resolved_max_children,
+        .max_nodes = payload.max_nodes orelse resolved_max_nodes,
+        .include_offscreen = payload.include_offscreen orelse include_offscreen,
+        .root = root,
+    });
+}
+
+pub fn elementClick(allocator: std.mem.Allocator, element_id: []const u8, window_handle: ?u64, button: core.model.MouseButton, move_duration_ms: ?u32) !core.model.AckResponse {
+    if (element_id.len == 0) {
+        return core.model.failure(core.model.Ack, "element.click", core.errors.codes.invalid_args, "element_id cannot be empty.", null);
+    }
+
+    const target = macResolveElementTargetWindow(allocator, window_handle) catch |err| return macElementResolutionFailure(core.model.Ack, "element.click", window_handle, err);
+
+    const pid_text = try std.fmt.allocPrint(allocator, "{d}", .{target.pid});
+    defer allocator.free(pid_text);
+    const handle_text = try std.fmt.allocPrint(allocator, "{d}", .{target.handle});
+    defer allocator.free(handle_text);
+
+    const result = try macRunJavaScript(allocator, macAccessibilityJavaScript, &[_][]const u8{
+        "lookup",
+        pid_text,
+        target.title,
+        "0",
+        "0",
+        "0",
+        "0",
+        element_id,
+        handle_text,
+    });
+    defer allocator.free(result.stdout);
+    defer allocator.free(result.stderr);
+
+    if (result.missing) {
+        return core.model.failure(core.model.Ack, "element.click", core.errors.codes.not_implemented, "macOS semantic element lookup requires osascript and Accessibility permission for the host process.", null);
+    }
+    if (result.exit_code != 0) {
+        return core.model.failure(core.model.Ack, "element.click", core.errors.codes.permission_denied, "macOS accessibility lookup command failed. Check Accessibility and Automation permissions for the host process.", try macCommandDetail(allocator, result));
+    }
+
+    const parsed = std.json.parseFromSlice(MacElementLookupPayload, allocator, result.stdout, .{ .ignore_unknown_fields = true }) catch |err| {
+        const detail = try std.fmt.allocPrint(allocator, "parse_error={s}; detail={s}", .{ @errorName(err), macTextSnippet(result.stdout) });
+        return core.model.failure(core.model.Ack, "element.click", core.errors.codes.system_error, "Failed to parse macOS accessibility lookup JSON.", detail);
+    };
+    const payload = parsed.value;
+
+    if (!payload.ok) {
+        return core.model.failure(core.model.Ack, "element.click", payload.code orelse core.errors.codes.system_error, payload.message orelse "macOS accessibility lookup failed.", payload.detail);
+    }
+
+    const bounds = payload.bounds orelse {
+        return core.model.failure(core.model.Ack, "element.click", core.errors.codes.system_error, "macOS accessibility lookup did not include bounds.", macTextSnippet(result.stdout));
+    };
+    const center = payload.center orelse {
+        return core.model.failure(core.model.Ack, "element.click", core.errors.codes.system_error, "macOS accessibility lookup did not include a click center.", macTextSnippet(result.stdout));
+    };
+
+    if ((payload.is_offscreen orelse false) or bounds.width <= 0 or bounds.height <= 0) {
+        return core.model.failure(core.model.Ack, "element.click", core.errors.codes.unsafe_operation, "The requested macOS element does not currently expose a clickable on-screen bounding rectangle.", try std.fmt.allocPrint(allocator, "element_id={s}; is_offscreen={s}; bounds={d},{d},{d},{d}", .{ element_id, if (payload.is_offscreen orelse false) "true" else "false", bounds.left, bounds.top, bounds.right, bounds.bottom }));
+    }
+
+    const activation = try windowActivate(allocator, target.handle);
+    if (!activation.ok) {
+        const failure = activation.failure orelse core.errors.ApiError{ .code = core.errors.codes.system_error, .message = "window.activate failed while clicking a macOS semantic element.", .detail = null };
+        return core.model.failure(core.model.Ack, "element.click", failure.code, failure.message, failure.detail);
+    }
+
+    const move_response = try mouseMove(allocator, center.x, center.y, move_duration_ms orelse 120, 0, 6);
+    if (!move_response.ok) {
+        const failure = move_response.failure orelse core.errors.ApiError{ .code = core.errors.codes.system_error, .message = "mouse.move failed while clicking a macOS semantic element.", .detail = null };
+        return core.model.failure(core.model.Ack, "element.click", failure.code, failure.message, failure.detail);
+    }
+
+    const click_response = try mouseClick(allocator, button, 1);
+    if (!click_response.ok) {
+        const failure = click_response.failure orelse core.errors.ApiError{ .code = core.errors.codes.system_error, .message = "mouse.click failed while clicking a macOS semantic element.", .detail = null };
+        return core.model.failure(core.model.Ack, "element.click", failure.code, failure.message, failure.detail);
+    }
+
+    return core.model.success("element.click", core.model.Ack{
+        .message = "Element center click sent.",
+        .detail = try std.fmt.allocPrint(allocator, "window_handle=0x{x}; element_id={s}; name={s}; control_type={s}; center={d},{d}; button={s}", .{ target.handle, payload.element_id orelse element_id, payload.name orelse "", payload.control_type orelse "", center.x, center.y, macMouseButtonName(button) }),
+    });
+}
+
 pub fn waitWindow(allocator: std.mem.Allocator, title: []const u8, timeout_ms: u64, match_mode: core.model.StringMatchMode, foreground_only: bool) !core.model.WaitWindowResponse {
     const start_ms = nowMs();
     while (true) {
@@ -1398,6 +1552,249 @@ const MacCommandResult = struct {
     exit_code: i32,
     missing: bool = false,
 };
+
+const MacElementTreePayload = struct {
+    ok: bool,
+    code: ?[]const u8 = null,
+    message: ?[]const u8 = null,
+    detail: ?[]const u8 = null,
+    window_handle: ?u64 = null,
+    window_title: ?[]const u8 = null,
+    generated_at: ?[]const u8 = null,
+    max_depth: ?u32 = null,
+    max_children: ?u32 = null,
+    max_nodes: ?u32 = null,
+    include_offscreen: ?bool = null,
+    root: ?core.model.UiElementNode = null,
+};
+
+const MacElementLookupPayload = struct {
+    ok: bool,
+    code: ?[]const u8 = null,
+    message: ?[]const u8 = null,
+    detail: ?[]const u8 = null,
+    window_handle: ?u64 = null,
+    element_id: ?[]const u8 = null,
+    name: ?[]const u8 = null,
+    control_type: ?[]const u8 = null,
+    is_offscreen: ?bool = null,
+    bounds: ?core.model.Rect = null,
+    center: ?core.model.Point = null,
+};
+
+const macAccessibilityJavaScript =
+    \\function run(argv) {
+    \\  const mode = String(argv[0] || 'tree');
+    \\  const targetPid = Number(argv[1] || 0);
+    \\  const targetTitle = String(argv[2] || '');
+    \\  const maxDepth = Number(argv[3] || 0);
+    \\  const maxChildren = Number(argv[4] || 0);
+    \\  const maxNodes = Number(argv[5] || 0);
+    \\  const includeOffscreen = String(argv[6] || '0') === '1';
+    \\  const elementId = String(argv[7] || 'root');
+    \\  const windowHandle = Number(argv[8] || 0);
+    \\  const se = Application('System Events');
+    \\  se.includeStandardAdditions = true;
+    \\  function safeCall(fn, fallback) {
+    \\    try {
+    \\      const value = fn();
+    \\      return value === undefined || value === null ? fallback : value;
+    \\    } catch (error) {
+    \\      return fallback;
+    \\    }
+    \\  }
+    \\  function safeText(value) {
+    \\    return value === undefined || value === null ? '' : String(value);
+    \\  }
+    \\  function toNumberArray(value) {
+    \\    if (!value || value.length < 2) {
+    \\      return [0, 0];
+    \\    }
+    \\    return [Number(value[0]) || 0, Number(value[1]) || 0];
+    \\  }
+    \\  function processList() {
+    \\    return safeCall(function () { return se.applicationProcesses(); }, []);
+    \\  }
+    \\  function resolveProcess(pid) {
+    \\    const processes = processList();
+    \\    for (let index = 0; index < processes.length; index += 1) {
+    \\      if (Number(safeCall(function () { return processes[index].unixId(); }, 0)) === pid) {
+    \\        return processes[index];
+    \\      }
+    \\    }
+    \\    return null;
+    \\  }
+    \\  function windowList(process) {
+    \\    return safeCall(function () { return process.windows(); }, []);
+    \\  }
+    \\  function resolveWindow(process, title) {
+    \\    const windows = windowList(process);
+    \\    for (let index = 0; index < windows.length; index += 1) {
+    \\      if (safeText(safeCall(function () { return windows[index].name(); }, '')) === title) {
+    \\        return windows[index];
+    \\      }
+    \\    }
+    \\    return windows.length > 0 ? windows[0] : process;
+    \\  }
+    \\  function childList(element) {
+    \\    return safeCall(function () { return element.uiElements(); }, []);
+    \\  }
+    \\  function attributeValue(element, name, fallback) {
+    \\    return safeCall(function () { return element.attributes.byName(name).value(); }, fallback);
+    \\  }
+    \\  function boundsFromElement(element) {
+    \\    const position = toNumberArray(safeCall(function () { return element.position(); }, [0, 0]));
+    \\    const size = toNumberArray(safeCall(function () { return element.size(); }, [0, 0]));
+    \\    return {
+    \\      left: Math.round(position[0]),
+    \\      top: Math.round(position[1]),
+    \\      right: Math.round(position[0] + size[0]),
+    \\      bottom: Math.round(position[1] + size[1]),
+    \\      width: Math.round(size[0]),
+    \\      height: Math.round(size[1]),
+    \\    };
+    \\  }
+    \\  function centerFromBounds(bounds) {
+    \\    return {
+    \\      x: Math.round((bounds.left + bounds.right) / 2),
+    \\      y: Math.round((bounds.top + bounds.bottom) / 2),
+    \\    };
+    \\  }
+    \\  function isOffscreen(element, bounds) {
+    \\    const visible = safeCall(function () { return element.visible(); }, null);
+    \\    if (visible !== null) {
+    \\      return !visible;
+    \\    }
+    \\    return bounds.width <= 0 || bounds.height <= 0;
+    \\  }
+    \\  function isEnabled(element) {
+    \\    return !!safeCall(function () { return element.enabled(); }, false);
+    \\  }
+    \\  function hasKeyboardFocus(element) {
+    \\    const focused = safeCall(function () { return element.focused(); }, null);
+    \\    if (focused !== null) {
+    \\      return !!focused;
+    \\    }
+    \\    return !!attributeValue(element, 'AXFocused', false);
+    \\  }
+    \\  function role(element) {
+    \\    return safeText(safeCall(function () { return element.role(); }, ''));
+    \\  }
+    \\  function subrole(element) {
+    \\    return safeText(safeCall(function () { return element.subrole(); }, ''));
+    \\  }
+    \\  function identifier(element) {
+    \\    return safeText(attributeValue(element, 'AXIdentifier', ''));
+    \\  }
+    \\  function frameworkId(process) {
+    \\    return safeText(safeCall(function () { return process.bundleIdentifier(); }, 'AX')) || 'AX';
+    \\  }
+    \\  function makeNode(element, process, path, depth, counters) {
+    \\    if (counters.emitted >= maxNodes) {
+    \\      return null;
+    \\    }
+    \\    counters.emitted += 1;
+    \\    const bounds = boundsFromElement(element);
+    \\    const node = {
+    \\      element_id: path,
+    \\      name: safeText(safeCall(function () { return element.name(); }, '')),
+    \\      automation_id: identifier(element),
+    \\      class_name: subrole(element),
+    \\      control_type: role(element),
+    \\      framework_id: frameworkId(process),
+    \\      is_enabled: isEnabled(element),
+    \\      is_offscreen: isOffscreen(element, bounds),
+    \\      has_keyboard_focus: hasKeyboardFocus(element),
+    \\      bounds: bounds,
+    \\      center: centerFromBounds(bounds),
+    \\      children: [],
+    \\    };
+    \\    if (depth < maxDepth && counters.emitted < maxNodes) {
+    \\      const children = childList(element);
+    \\      for (let rawIndex = 0; rawIndex < children.length; rawIndex += 1) {
+    \\        if (node.children.length >= maxChildren || counters.emitted >= maxNodes) {
+    \\          break;
+    \\        }
+    \\        const child = children[rawIndex];
+    \\        const childBounds = boundsFromElement(child);
+    \\        if (includeOffscreen || !isOffscreen(child, childBounds)) {
+    \\          const childPath = path === 'root' ? 'root/' + rawIndex : path + '/' + rawIndex;
+    \\          const childNode = makeNode(child, process, childPath, depth + 1, counters);
+    \\          if (childNode) {
+    \\            node.children.push(childNode);
+    \\          }
+    \\        }
+    \\      }
+    \\    }
+    \\    return node;
+    \\  }
+    \\  function resolvePath(root, path) {
+    \\    if (!path || path === 'root') {
+    \\      return root;
+    \\    }
+    \\    let current = root;
+    \\    const segments = path.split('/').filter(function (segment) {
+    \\      return segment && segment !== 'root';
+    \\    });
+    \\    for (let index = 0; index < segments.length; index += 1) {
+    \\      const wanted = Number(segments[index]);
+    \\      if (!Number.isInteger(wanted)) {
+    \\        throw new Error('Invalid element path segment ' + segments[index] + '.');
+    \\      }
+    \\      const children = childList(current);
+    \\      if (wanted < 0 || wanted >= children.length) {
+    \\        throw new Error('Element path segment ' + segments[index] + ' was not found.');
+    \\      }
+    \\      current = children[wanted];
+    \\    }
+    \\    return current;
+    \\  }
+    \\  try {
+    \\    const process = resolveProcess(targetPid);
+    \\    if (!process) {
+    \\      throw new Error('The requested macOS application process could not be resolved.');
+    \\    }
+    \\    const root = resolveWindow(process, targetTitle);
+    \\    if (!root) {
+    \\      throw new Error('The requested macOS accessibility window could not be resolved.');
+    \\    }
+    \\    if (mode === 'tree') {
+    \\      return JSON.stringify({
+    \\        ok: true,
+    \\        window_handle: windowHandle,
+    \\        window_title: safeText(safeCall(function () { return root.name(); }, targetTitle)),
+    \\        generated_at: new Date().toISOString(),
+    \\        max_depth: maxDepth,
+    \\        max_children: maxChildren,
+    \\        max_nodes: maxNodes,
+    \\        include_offscreen: includeOffscreen,
+    \\        root: makeNode(root, process, 'root', 0, { emitted: 0 }),
+    \\      });
+    \\    }
+    \\    const target = resolvePath(root, elementId);
+    \\    const bounds = boundsFromElement(target);
+    \\    return JSON.stringify({
+    \\      ok: true,
+    \\      window_handle: windowHandle,
+    \\      element_id: elementId,
+    \\      name: safeText(safeCall(function () { return target.name(); }, '')),
+    \\      control_type: role(target),
+    \\      is_offscreen: isOffscreen(target, bounds),
+    \\      bounds: bounds,
+    \\      center: centerFromBounds(bounds),
+    \\    });
+    \\  } catch (error) {
+    \\    const detail = safeText(error && error.message ? error.message : error);
+    \\    const code = detail.indexOf('not found') >= 0 || detail.indexOf('could not be resolved') >= 0 ? 'not_found' : 'system_error';
+    \\    return JSON.stringify({
+    \\      ok: false,
+    \\      code: code,
+    \\      message: mode === 'tree' ? 'macOS accessibility element tree inspection failed.' : 'macOS accessibility element lookup failed.',
+    \\      detail: detail,
+    \\    });
+    \\  }
+    \\}
+;
 
 fn macRunCommand(allocator: std.mem.Allocator, argv: []const []const u8, stdin_bytes: ?[]const u8) !MacCommandResult {
     var child = std.process.Child.init(argv, allocator);
@@ -1620,6 +2017,39 @@ fn macRunAppleScriptOrFailure(allocator: std.mem.Allocator, capability: []const 
     defer allocator.free(result.stderr);
     if (result.missing or result.exit_code != 0) return error.AppleScriptFailed;
     _ = capability;
+}
+
+fn macResolveElementTargetWindow(allocator: std.mem.Allocator, handle: ?u64) !core.model.WindowInfo {
+    if (handle) |value| {
+        return macResolveWindowTarget(allocator, value);
+    }
+
+    const foreground = try windowForeground(allocator);
+    if (!foreground.ok) return error.WindowLookupFailed;
+    if (!foreground.data.?.found or foreground.data.?.window == null) return error.WindowNotFound;
+    return foreground.data.?.window.?;
+}
+
+fn macElementResolutionFailure(comptime T: type, capability: []const u8, handle: ?u64, err: anyerror) core.model.Envelope(T) {
+    return switch (err) {
+        error.InvalidHandle => core.model.failure(T, capability, core.errors.codes.invalid_args, "Window operation requires a non-zero handle.", null),
+        error.WindowNotFound => core.model.failure(T, capability, core.errors.codes.not_found, if (handle != null) "The requested macOS window handle is no longer present in the CoreGraphics snapshot." else "No foreground macOS window is available for semantic element inspection.", null),
+        else => core.model.failure(T, capability, core.errors.codes.system_error, "Failed while resolving the requested macOS window for semantic element inspection.", @errorName(err)),
+    };
+}
+
+fn macMouseButtonName(button: core.model.MouseButton) []const u8 {
+    return switch (button) {
+        .left => "left",
+        .right => "right",
+        .middle => "middle",
+    };
+}
+
+fn macTextSnippet(text: []const u8) []const u8 {
+    const trimmed = std.mem.trim(u8, text, " \t\r\n");
+    if (trimmed.len <= 512) return trimmed;
+    return trimmed[0..512];
 }
 
 fn macAckResolutionFailure(allocator: std.mem.Allocator, capability: []const u8, handle: u64, err: anyerror) core.model.AckResponse {

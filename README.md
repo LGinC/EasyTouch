@@ -99,7 +99,7 @@ npx skills add https://github.com/whuanle/EasyTouch
 
 如果只是给 AI 工具使用，建议使用 skills 即可，配置 MCP 可能会麻烦一些。
 
-在 Claude、Cursor、VS Code、Sidecar 等工具中，配置 MCP 的方式基本一致。通过 npm 安装后，推荐直接调用全局 `et`，这样 Windows、Linux、macOS 都能使用同一套配置。只有在宿主程序无法从 PATH 找到命令时，才退回到完整路径或 `npx`。
+在 Claude、Cursor、VS Code、Sidecar 等工具中，配置 MCP 的方式基本一致。通过 npm 安装后，推荐先执行包内 `init.js`，把当前操作系统和 CPU 对应的原生二进制复制成真正的 `et` 程序，然后让 MCP 直接调用这个原生文件。这样可以避免 `et.cmd`、`et.sh`、`npx.cmd` 这类桥接层。
 
 
 
@@ -107,9 +107,44 @@ npx skills add https://github.com/whuanle/EasyTouch
 
 
 
-**全局安装后（推荐，三平台统一写法）**
+**本地安装后（推荐）**
 
-先执行 `npm i -g @whuanle/easytouch`，或者安装对应平台包，然后使用：
+先执行：
+
+```bash
+npm i @whuanle/easytouch
+node ./node_modules/@whuanle/easytouch/init.js
+```
+
+如果安装的是 `@whuanle/easytouch`，这一步会先自动安装当前系统对应的平台包，再复制出原生 `et` 文件。
+
+执行后会生成：
+
+- Windows：`./node_modules/@whuanle/easytouch/et.exe`
+- Linux / macOS：`./node_modules/@whuanle/easytouch/et`
+
+然后在 MCP 配置里直接指向这个原生文件：
+
+```json
+{
+  "mcpServers": {
+    "easytouch": {
+      "command": "<你的项目路径>/node_modules/@whuanle/easytouch/et",
+      "args": ["mcp-stdio"]
+    }
+  }
+}
+```
+
+> Windows 请把文件名写成 `et.exe`。Linux / macOS 写 `et`。
+
+**全局安装后**
+
+如果你已经全局安装并且宿主能正确处理 PATH，也仍然可以直接使用全局 `et`。首次运行时，如果平台包还没装好，启动器也会自动补装当前平台包：
+
+```bash
+npm i -g @whuanle/easytouch
+```
 
 ```json
 {
@@ -122,14 +157,14 @@ npx skills add https://github.com/whuanle/EasyTouch
 }
 ```
 
-**宿主程序不走 PATH 时**
+**宿主程序不走 PATH 时（旧方式）**
 
 - Windows：把 `command` 改成 `C:\\Users\\<你自己的用户名>\\AppData\\Roaming\\npm\\et.cmd`
 - Linux / macOS：先执行 `npm prefix -g`，然后把 `command` 改成 `<prefix>/bin/et`
 
-**不想全局安装时（备用）**
+**不想初始化原生文件时（备用）**
 
-如果你不想全局安装，也可以临时通过 `npx` 启动。这里同样建议统一使用 `@whuanle/easytouch`，不要再按平台分别写包名。
+如果你不想先执行 `init.js`，也可以临时通过 `npx` 启动。这里同样建议统一使用 `@whuanle/easytouch`，不要再按平台分别写包名。首次运行可能会多花一点时间，因为会自动安装当前平台包。
 
 - Windows：`command` 推荐写 `npx.cmd`
 - Linux / macOS：`command` 写 `npx`
@@ -138,14 +173,44 @@ npx skills add https://github.com/whuanle/EasyTouch
 {
   "mcpServers": {
     "easytouch": {
-      "command": "npx",
+      "command": "npx.cmd",
       "args": ["-y", "@whuanle/easytouch", "mcp-stdio"]
     }
   }
 }
 ```
 
-> 如果是在 Windows 的 GUI 程序中配置 MCP，`command` 往往应显式写成 `npx.cmd` 或 `et.cmd`，不要只写 `npx`，否则有些宿主不会按 PowerShell 规则解析 `.ps1` / `.cmd`。
+> 如果是在 Windows 的 GUI 程序中配置 MCP，直接用 `init.js` 生成的 `et.exe` 最稳。只有在走 `npx` 或全局 npm 命令时，才需要关心 `npx.cmd`、`et.cmd` 这些桥接文件；常见失败表现就是 `LOCAL_PROCESS_ERROR`。
+
+Linux / macOS 如果使用这段备用配置，把 `command` 改回 `npx` 即可。
+
+### 语义元素定位
+
+当截图交给 AI 后，单靠图片反推点击坐标通常不够稳定。EasyTouch 现在支持先读取当前窗口的语义元素树，再按元素查找、等待、点击或 invoke：
+
+```bash
+et element tree --output json
+et element find --name "确定" --control-type Button --output json
+et wait element --name "保存" --control-type Button --timeout-ms 5000 --output json
+et element click --element-id root/0/3 --output json
+et element invoke --element-id root/0/3 --output json
+```
+
+说明：
+
+- `element tree` 默认读取当前前台窗口，也可以通过 `--window-handle` 指定目标窗口。
+- 返回结果里会包含 `element_id`、`control_type`、`automation_id`、`class_name`、`framework_id`、`center`、`bounds` 和 `children`，适合让 AI 像读 HTML DOM 一样选元素。
+- `element find` 会基于 `element_id`、`name`、`automation_id`、`class_name`、`control_type`、`framework_id` 搜索元素树，并返回第一个匹配元素。
+- `wait element` 会轮询元素树，直到匹配元素出现，适合弹窗、延迟渲染按钮、异步加载表单等场景。
+- `element click` 会重新解析 `element_id`，激活目标窗口，再点击元素中心点，不需要 AI 自己从截图里估算坐标。
+- `element invoke` 当前会走平台语义动作或元素中心点击回退，适合让模型统一表达“点这个控件”。
+- 还可以用 `--max-depth`、`--max-children`、`--max-nodes` 控制树的规模，避免把过大的界面树一次性都送给模型。
+
+平台说明：
+
+- Windows：通过 UI Automation + PowerShell 工作。
+- Linux：依赖 `python3` 或 `python` 能导入 `pyatspi`，点击回退依赖 `xdotool`，当前以 X11/XWayland 会话为主。
+- macOS：依赖 `osascript` + System Events UI Scripting，宿主进程需要授予 Accessibility 和 Automation 权限。
 
 
 

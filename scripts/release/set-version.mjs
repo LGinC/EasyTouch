@@ -44,14 +44,30 @@ if (!publishableVersion) {
 
 const packageFiles = [
   path.join(repoRoot, "package.json"),
+  path.join(repoRoot, "packages", "easytouch", "package.json"),
   path.join(repoRoot, "packages", "easytouch-windows", "package.json"),
   path.join(repoRoot, "packages", "easytouch-linux", "package.json"),
   path.join(repoRoot, "packages", "easytouch-macos", "package.json"),
 ];
 
+const platformPackageNames = new Set([
+  "easytouch-windows",
+  "easytouch-linux",
+  "easytouch-macos",
+]);
+
 for (const filePath of packageFiles) {
   const packageJson = JSON.parse(await fs.readFile(filePath, "utf8"));
   packageJson.version = publishableVersion;
+
+  if (packageJson.optionalDependencies) {
+    for (const dependencyName of Object.keys(packageJson.optionalDependencies)) {
+      if (!platformPackageNames.has(dependencyName)) {
+        continue;
+      }
+      packageJson.optionalDependencies[dependencyName] = publishableVersion;
+    }
+  }
 
   await fs.writeFile(filePath, `${JSON.stringify(packageJson, null, 2)}\n`, "utf8");
   console.log(`updated ${path.relative(repoRoot, filePath)} -> ${publishableVersion}`);

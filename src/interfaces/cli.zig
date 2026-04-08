@@ -544,6 +544,107 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !u8 {
         return try emit(output_mode, response, printDisplayListText);
     }
 
+    if (std.mem.eql(u8, command, "element") and args.len >= 2 and std.mem.eql(u8, args[1], "tree")) {
+        const output_mode = try readOutputMode(args[2..]);
+        const window_handle = if (findOptionValue(args[2..], "--window-handle")) |value|
+            parseHandleValue(value) catch {
+                const response = core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.invalid_args, "Invalid --window-handle value. Use a decimal handle or a 0x-prefixed hex handle.", value);
+                return try emit(output_mode, response, printElementTreeText);
+            }
+        else
+            null;
+        const max_depth = if (findOptionValue(args[2..], "--max-depth")) |value|
+            std.fmt.parseInt(u32, value, 10) catch {
+                const response = core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.invalid_args, "Invalid --max-depth value. Use a non-negative 32-bit integer.", value);
+                return try emit(output_mode, response, printElementTreeText);
+            }
+        else
+            null;
+        const max_children = if (findOptionValue(args[2..], "--max-children")) |value|
+            std.fmt.parseInt(u32, value, 10) catch {
+                const response = core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.invalid_args, "Invalid --max-children value. Use a non-negative 32-bit integer.", value);
+                return try emit(output_mode, response, printElementTreeText);
+            }
+        else
+            null;
+        const max_nodes = if (findOptionValue(args[2..], "--max-nodes")) |value|
+            std.fmt.parseInt(u32, value, 10) catch {
+                const response = core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.invalid_args, "Invalid --max-nodes value. Use a non-negative 32-bit integer.", value);
+                return try emit(output_mode, response, printElementTreeText);
+            }
+        else
+            null;
+        const include_offscreen = hasFlag(args[2..], "--include-offscreen");
+        const response = try runtime.elementTree(allocator, window_handle, max_depth, max_children, max_nodes, include_offscreen);
+        return try emit(output_mode, response, printElementTreeText);
+    }
+
+    if (std.mem.eql(u8, command, "element") and args.len >= 2 and std.mem.eql(u8, args[1], "click")) {
+        const output_mode = try readOutputMode(args[2..]);
+        const element_id = findOptionValue(args[2..], "--element-id") orelse {
+            const response = core.model.failure(core.model.Ack, "element.click", core.errors.codes.invalid_args, "Missing required --element-id value.", null);
+            return try emit(output_mode, response, printAckText);
+        };
+        const window_handle = if (findOptionValue(args[2..], "--window-handle")) |value|
+            parseHandleValue(value) catch {
+                const response = core.model.failure(core.model.Ack, "element.click", core.errors.codes.invalid_args, "Invalid --window-handle value. Use a decimal handle or a 0x-prefixed hex handle.", value);
+                return try emit(output_mode, response, printAckText);
+            }
+        else
+            null;
+        const button = if (findOptionValue(args[2..], "--button")) |value|
+            parseMouseButton(value) orelse {
+                const response = core.model.failure(core.model.Ack, "element.click", core.errors.codes.invalid_args, "Invalid --button value. Use left, right, or middle.", value);
+                return try emit(output_mode, response, printAckText);
+            }
+        else
+            core.model.MouseButton.left;
+        const move_duration_ms = if (findOptionValue(args[2..], "--move-duration-ms")) |value|
+            std.fmt.parseInt(u32, value, 10) catch {
+                const response = core.model.failure(core.model.Ack, "element.click", core.errors.codes.invalid_args, "Invalid --move-duration-ms value. Use a non-negative 32-bit integer.", value);
+                return try emit(output_mode, response, printAckText);
+            }
+        else
+            null;
+        const response = try runtime.elementClick(allocator, element_id, window_handle, button, move_duration_ms);
+        return try emit(output_mode, response, printAckText);
+    }
+
+    if (std.mem.eql(u8, command, "element") and args.len >= 2 and std.mem.eql(u8, args[1], "find")) {
+        const output_mode = try readOutputMode(args[2..]);
+        const query = parseElementQueryArgs(args[2..]) catch |err| {
+            const response = cliElementQueryFailure(core.model.ElementMatch, "element.find", err, args[2..]);
+            return try emit(output_mode, response, printElementMatchText);
+        };
+        const response = try runtime.elementFind(allocator, query);
+        return try emit(output_mode, response, printElementMatchText);
+    }
+
+    if (std.mem.eql(u8, command, "element") and args.len >= 2 and std.mem.eql(u8, args[1], "invoke")) {
+        const output_mode = try readOutputMode(args[2..]);
+        const element_id = findOptionValue(args[2..], "--element-id") orelse {
+            const response = core.model.failure(core.model.Ack, "element.invoke", core.errors.codes.invalid_args, "Missing required --element-id value.", null);
+            return try emit(output_mode, response, printAckText);
+        };
+        const window_handle = if (findOptionValue(args[2..], "--window-handle")) |value|
+            parseHandleValue(value) catch {
+                const response = core.model.failure(core.model.Ack, "element.invoke", core.errors.codes.invalid_args, "Invalid --window-handle value. Use a decimal handle or a 0x-prefixed hex handle.", value);
+                return try emit(output_mode, response, printAckText);
+            }
+        else
+            null;
+        const action = findOptionValue(args[2..], "--action");
+        const move_duration_ms = if (findOptionValue(args[2..], "--move-duration-ms")) |value|
+            std.fmt.parseInt(u32, value, 10) catch {
+                const response = core.model.failure(core.model.Ack, "element.invoke", core.errors.codes.invalid_args, "Invalid --move-duration-ms value. Use a non-negative 32-bit integer.", value);
+                return try emit(output_mode, response, printAckText);
+            }
+        else
+            null;
+        const response = try runtime.elementInvoke(allocator, element_id, window_handle, action, move_duration_ms);
+        return try emit(output_mode, response, printAckText);
+    }
+
     if (std.mem.eql(u8, command, "wait") and args.len >= 2 and std.mem.eql(u8, args[1], "window")) {
         const output_mode = try readOutputMode(args[2..]);
         const title = findOptionValue(args[2..], "--title") orelse {
@@ -561,6 +662,27 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !u8 {
         const foreground_only = hasFlag(args[2..], "--foreground-only");
         const response = try runtime.waitWindow(allocator, title, timeout_ms, match_mode, foreground_only);
         return try emit(output_mode, response, printWaitWindowText);
+    }
+
+    if (std.mem.eql(u8, command, "wait") and args.len >= 2 and std.mem.eql(u8, args[1], "element")) {
+        const output_mode = try readOutputMode(args[2..]);
+        const query = parseElementQueryArgs(args[2..]) catch |err| {
+            const response = cliElementQueryFailure(core.model.WaitElement, "wait.element", err, args[2..]);
+            return try emit(output_mode, response, printWaitElementText);
+        };
+        const timeout_ms = if (findOptionValue(args[2..], "--timeout-ms")) |value|
+            std.fmt.parseInt(u64, value, 10) catch 2000
+        else
+            2000;
+        const poll_interval_ms = if (findOptionValue(args[2..], "--poll-interval-ms")) |value|
+            std.fmt.parseInt(u32, value, 10) catch {
+                const response = core.model.failure(core.model.WaitElement, "wait.element", core.errors.codes.invalid_args, "Invalid --poll-interval-ms value. Use a non-negative 32-bit integer.", value);
+                return try emit(output_mode, response, printWaitElementText);
+            }
+        else
+            null;
+        const response = try runtime.waitElement(allocator, query, timeout_ms, poll_interval_ms);
+        return try emit(output_mode, response, printWaitElementText);
     }
 
     if (std.mem.eql(u8, command, "wait") and args.len >= 2 and std.mem.eql(u8, args[1], "focus")) {
@@ -998,6 +1120,36 @@ fn printDisplayListText(response: core.model.DisplayListResponse) void {
     }
 }
 
+fn printElementTreeText(response: core.model.ElementTreeResponse) void {
+    if (!response.ok) {
+        printResponseError(response.capability, response.failure);
+        return;
+    }
+    const data = response.data.?;
+    std.debug.print("{s}\n", .{response.capability});
+    std.debug.print("- window_handle: 0x{x}\n", .{data.window_handle});
+    std.debug.print("- window_title: {s}\n", .{data.window_title});
+    std.debug.print("- generated_at: {s}\n", .{data.generated_at});
+    std.debug.print("- max_depth: {d}\n", .{data.max_depth});
+    std.debug.print("- max_children: {d}\n", .{data.max_children});
+    std.debug.print("- max_nodes: {d}\n", .{data.max_nodes});
+    std.debug.print("- include_offscreen: {}\n", .{data.include_offscreen});
+    printUiElementNode(data.root, 1);
+}
+
+fn printElementMatchText(response: core.model.ElementMatchResponse) void {
+    if (!response.ok) {
+        printResponseError(response.capability, response.failure);
+        return;
+    }
+    const data = response.data.?;
+    std.debug.print("{s}\n", .{response.capability});
+    std.debug.print("- found: {}\n", .{data.found});
+    if (data.match) |match| {
+        printElementMatchDetail(match);
+    }
+}
+
 fn printWaitWindowText(response: core.model.WaitWindowResponse) void {
     if (!response.ok) {
         printResponseError(response.capability, response.failure);
@@ -1009,6 +1161,20 @@ fn printWaitWindowText(response: core.model.WaitWindowResponse) void {
     std.debug.print("- elapsed_ms: {d}\n", .{data.elapsed_ms});
     if (data.window) |window| {
         printWindow(window);
+    }
+}
+
+fn printWaitElementText(response: core.model.WaitElementResponse) void {
+    if (!response.ok) {
+        printResponseError(response.capability, response.failure);
+        return;
+    }
+    const data = response.data.?;
+    std.debug.print("{s}\n", .{response.capability});
+    std.debug.print("- matched: {}\n", .{data.matched});
+    std.debug.print("- elapsed_ms: {d}\n", .{data.elapsed_ms});
+    if (data.match) |match| {
+        printElementMatchDetail(match);
     }
 }
 
@@ -1071,6 +1237,66 @@ fn printWindow(window: core.model.WindowInfo) void {
     });
 }
 
+fn printUiElementNode(node: core.model.UiElementNode, depth: usize) void {
+    printIndent(depth);
+    std.debug.print("- id: {s}; type: {s}; name: {s}; automation_id: {s}; class_name: {s}; center: {d},{d}; bounds: {d},{d}->{d},{d}; enabled: {}; offscreen: {}; focus: {}\n", .{
+        node.element_id,
+        node.control_type,
+        node.name,
+        node.automation_id,
+        node.class_name,
+        node.center.x,
+        node.center.y,
+        node.bounds.left,
+        node.bounds.top,
+        node.bounds.right,
+        node.bounds.bottom,
+        node.is_enabled,
+        node.is_offscreen,
+        node.has_keyboard_focus,
+    });
+
+    for (node.children) |child| {
+        printUiElementNode(child, depth + 1);
+    }
+}
+
+fn printElementMatchDetail(detail: core.model.ElementMatchDetail) void {
+    std.debug.print("- window_handle: 0x{x}\n", .{detail.window_handle});
+    std.debug.print("- window_title: {s}\n", .{detail.window_title});
+    std.debug.print("- generated_at: {s}\n", .{detail.generated_at});
+    std.debug.print("- matched_by: {s}\n", .{detail.matched_by});
+    printUiElementRef(detail.element, 1);
+}
+
+fn printUiElementRef(node: core.model.UiElementRef, depth: usize) void {
+    printIndent(depth);
+    std.debug.print("- id: {s}; type: {s}; name: {s}; automation_id: {s}; class_name: {s}; framework_id: {s}; center: {d},{d}; bounds: {d},{d}->{d},{d}; enabled: {}; offscreen: {}; focus: {}\n", .{
+        node.element_id,
+        node.control_type,
+        node.name,
+        node.automation_id,
+        node.class_name,
+        node.framework_id,
+        node.center.x,
+        node.center.y,
+        node.bounds.left,
+        node.bounds.top,
+        node.bounds.right,
+        node.bounds.bottom,
+        node.is_enabled,
+        node.is_offscreen,
+        node.has_keyboard_focus,
+    });
+}
+
+fn printIndent(depth: usize) void {
+    var index: usize = 0;
+    while (index < depth) : (index += 1) {
+        std.debug.print("  ", .{});
+    }
+}
+
 fn printResponseError(capability: []const u8, err: ?core.errors.ApiError) void {
     const payload = err orelse core.errors.ApiError{ .code = core.errors.codes.system_error, .message = "The command failed without structured error details.", .detail = null };
     core.output.printErrorText(capability, payload.code, payload.message, payload.detail);
@@ -1117,6 +1343,58 @@ fn parseMouseButton(value: []const u8) ?core.model.MouseButton {
     if (std.mem.eql(u8, value, "right")) return .right;
     if (std.mem.eql(u8, value, "middle")) return .middle;
     return null;
+}
+
+const CliElementQueryParseError = error{
+    InvalidWindowHandle,
+    InvalidMaxDepth,
+    InvalidMaxChildren,
+    InvalidMaxNodes,
+    InvalidMatchMode,
+};
+
+fn parseElementQueryArgs(args: []const []const u8) CliElementQueryParseError!core.model.ElementQuery {
+    return .{
+        .window_handle = if (findOptionValue(args, "--window-handle")) |value|
+            parseHandleValue(value) catch return error.InvalidWindowHandle
+        else
+            null,
+        .element_id = findOptionValue(args, "--element-id"),
+        .name = findOptionValue(args, "--name"),
+        .automation_id = findOptionValue(args, "--automation-id"),
+        .class_name = findOptionValue(args, "--class-name"),
+        .control_type = findOptionValue(args, "--control-type"),
+        .framework_id = findOptionValue(args, "--framework-id"),
+        .match_mode = if (findOptionValue(args, "--match")) |value|
+            core.model.parseMatchMode(value) orelse return error.InvalidMatchMode
+        else
+            .contains,
+        .max_depth = if (findOptionValue(args, "--max-depth")) |value|
+            std.fmt.parseInt(u32, value, 10) catch return error.InvalidMaxDepth
+        else
+            null,
+        .max_children = if (findOptionValue(args, "--max-children")) |value|
+            std.fmt.parseInt(u32, value, 10) catch return error.InvalidMaxChildren
+        else
+            null,
+        .max_nodes = if (findOptionValue(args, "--max-nodes")) |value|
+            std.fmt.parseInt(u32, value, 10) catch return error.InvalidMaxNodes
+        else
+            null,
+        .include_offscreen = hasFlag(args, "--include-offscreen"),
+        .enabled_only = hasFlag(args, "--enabled-only"),
+        .focus_only = hasFlag(args, "--focus-only"),
+    };
+}
+
+fn cliElementQueryFailure(comptime T: type, capability: []const u8, err: CliElementQueryParseError, args: []const []const u8) core.model.Envelope(T) {
+    return switch (err) {
+        error.InvalidWindowHandle => core.model.failure(T, capability, core.errors.codes.invalid_args, "Invalid --window-handle value. Use a decimal handle or a 0x-prefixed hex handle.", findOptionValue(args, "--window-handle")),
+        error.InvalidMaxDepth => core.model.failure(T, capability, core.errors.codes.invalid_args, "Invalid --max-depth value. Use a non-negative 32-bit integer.", findOptionValue(args, "--max-depth")),
+        error.InvalidMaxChildren => core.model.failure(T, capability, core.errors.codes.invalid_args, "Invalid --max-children value. Use a non-negative 32-bit integer.", findOptionValue(args, "--max-children")),
+        error.InvalidMaxNodes => core.model.failure(T, capability, core.errors.codes.invalid_args, "Invalid --max-nodes value. Use a non-negative 32-bit integer.", findOptionValue(args, "--max-nodes")),
+        error.InvalidMatchMode => core.model.failure(T, capability, core.errors.codes.invalid_args, "Invalid --match value. Use contains or exact.", findOptionValue(args, "--match")),
+    };
 }
 
 fn parseBoolValue(value: []const u8) ?bool {

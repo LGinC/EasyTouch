@@ -76,3 +76,26 @@ jobs:
           node scripts/release/set-version.mjs 0.1.0-ci
           node scripts/release/stage-platform-package.mjs --template packages/${{ matrix.package_name }} --output dist/npm/${{ matrix.package_name }} --binary zig-out/bin/${{ matrix.binary_name }} --binary-name ${{ matrix.binary_name }}
           npm pack --dry-run ./dist/npm/${{ matrix.package_name }}
+
+      - name: Smoke test platform init.js
+        run: |
+          node dist/npm/${{ matrix.package_name }}/init.js --output dist/init/${{ matrix.binary_name }} --force
+          node -e "const fs=require('node:fs'); if (!fs.existsSync('dist/init/${{ matrix.binary_name }}')) process.exit(1);"
+
+      - name: Dry-run aggregated npm package
+        if: runner.os == 'Linux'
+        run: |
+          node scripts/release/set-version.mjs 0.1.0-ci
+          node scripts/release/stage-root-package.mjs --template packages/easytouch --output dist/npm/easytouch
+          npm pack --dry-run ./dist/npm/easytouch
+
+      - name: Smoke test root init.js
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p dist/tarballs
+          npm pack ./dist/npm/easytouch-linux --pack-destination dist/tarballs
+          export EASYTOUCH_PLATFORM_PACKAGE_SOURCE="$PWD/dist/tarballs/easytouch-linux-0.1.0-ci.tgz"
+          node dist/npm/easytouch/init.js --output dist/init-root/et --force
+          test -f dist/init-root/et

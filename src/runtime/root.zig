@@ -354,6 +354,108 @@ pub fn screenDisplays(allocator: std.mem.Allocator) !core.model.DisplayListRespo
     };
 }
 
+pub fn elementTree(allocator: std.mem.Allocator, window_handle: ?u64, max_depth: ?u32, max_children: ?u32, max_nodes: ?u32, include_offscreen: bool) !core.model.ElementTreeResponse {
+    return switch (builtin.os.tag) {
+        .windows => windows.runtime.elementTree(allocator, window_handle, max_depth, max_children, max_nodes, include_offscreen),
+        .linux => linux.runtime.elementTree(allocator, window_handle, max_depth, max_children, max_nodes, include_offscreen),
+        .macos => mac.runtime.elementTree(allocator, window_handle, max_depth, max_children, max_nodes, include_offscreen),
+        else => core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.unsupported_host, "This host OS is outside the current EasyTouch support matrix.", null),
+    };
+}
+
+pub fn elementClick(allocator: std.mem.Allocator, element_id: []const u8, window_handle: ?u64, button: core.model.MouseButton, move_duration_ms: ?u32) !core.model.AckResponse {
+    return switch (builtin.os.tag) {
+        .windows => windows.runtime.elementClick(allocator, element_id, window_handle, button, move_duration_ms),
+        .linux => linux.runtime.elementClick(allocator, element_id, window_handle, button, move_duration_ms),
+        .macos => mac.runtime.elementClick(allocator, element_id, window_handle, button, move_duration_ms),
+        else => core.model.failure(core.model.Ack, "element.click", core.errors.codes.unsupported_host, "This host OS is outside the current EasyTouch support matrix.", null),
+    };
+}
+
+pub fn elementFind(allocator: std.mem.Allocator, query: core.model.ElementQuery) !core.model.ElementMatchResponse {
+    if (!elementQueryHasSelector(query)) {
+        return core.model.failure(core.model.ElementMatch, "element.find", core.errors.codes.invalid_args, "Provide at least one selector such as element_id, name, automation_id, class_name, control_type, or framework_id.", null);
+    }
+
+    const tree_response = try elementTree(allocator, query.window_handle, query.max_depth, query.max_children, query.max_nodes, query.include_offscreen);
+    if (!tree_response.ok) {
+        const failure = tree_response.failure orelse core.errors.ApiError{ .code = core.errors.codes.system_error, .message = "element.tree failed while searching for an element.", .detail = null };
+        return core.model.failure(core.model.ElementMatch, "element.find", failure.code, failure.message, failure.detail);
+    }
+
+    const tree = tree_response.data.?;
+    const matched_element = findMatchingElement(tree.root, query);
+    const match_detail = if (matched_element) |element_ref|
+        try buildElementMatchDetail(allocator, tree, query, element_ref)
+    else
+        null;
+
+    return core.model.success("element.find", core.model.ElementMatch{
+        .found = match_detail != null,
+        .match = match_detail,
+    });
+}
+
+pub fn elementInvoke(allocator: std.mem.Allocator, element_id: []const u8, window_handle: ?u64, action: ?[]const u8, move_duration_ms: ?u32) !core.model.AckResponse {
+    if (element_id.len == 0) {
+        return core.model.failure(core.model.Ack, "element.invoke", core.errors.codes.invalid_args, "element_id cannot be empty.", null);
+    }
+
+    if (action) |value| {
+        if (!isSupportedInvokeAction(value)) {
+            return core.model.failure(core.model.Ack, "element.invoke", core.errors.codes.invalid_args, "action must be one of invoke, click, or press when provided.", value);
+        }
+    }
+
+    const click_response = try elementClick(allocator, element_id, window_handle, .left, move_duration_ms);
+    if (!click_response.ok) {
+        const failure = click_response.failure orelse core.errors.ApiError{ .code = core.errors.codes.system_error, .message = "element.click failed while invoking an element.", .detail = null };
+        return core.model.failure(core.model.Ack, "element.invoke", failure.code, failure.message, failure.detail);
+    }
+
+    return core.model.success("element.invoke", core.model.Ack{
+        .message = "Element invoke completed.",
+        .detail = click_response.data.?.detail,
+    });
+}
+
+pub fn waitElement(allocator: std.mem.Allocator, query: core.model.ElementQuery, timeout_ms: u64, poll_interval_ms: ?u32) !core.model.WaitElementResponse {
+    if (!elementQueryHasSelector(query)) {
+        return core.model.failure(core.model.WaitElement, "wait.element", core.errors.codes.invalid_args, "Provide at least one selector such as element_id, name, automation_id, class_name, control_type, or framework_id.", null);
+    }
+
+    const resolved_poll_interval_ms = poll_interval_ms orelse 200;
+    if (resolved_poll_interval_ms == 0 or resolved_poll_interval_ms > 60_000) {
+        return core.model.failure(core.model.WaitElement, "wait.element", core.errors.codes.invalid_args, "poll_interval_ms must be in range 1..60000.", null);
+    }
+
+    const start_ms = nowMs();
+    while (true) {
+        var iteration_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        defer iteration_arena.deinit();
+
+        const iteration_response = try elementFind(iteration_arena.allocator(), query);
+        if (!iteration_response.ok) {
+            const failure = iteration_response.failure orelse core.errors.ApiError{ .code = core.errors.codes.system_error, .message = "element.find failed while polling for an element.", .detail = null };
+            return core.model.failure(core.model.WaitElement, "wait.element", failure.code, failure.message, failure.detail);
+        }
+
+        if (iteration_response.data.?.match) |match_detail| {
+            return core.model.success("wait.element", core.model.WaitElement{
+                .matched = true,
+                .elapsed_ms = nowMs() - start_ms,
+                .match = try cloneElementMatchDetail(allocator, match_detail),
+            });
+        }
+
+        if (nowMs() - start_ms >= timeout_ms) {
+            return core.model.failure(core.model.WaitElement, "wait.element", core.errors.codes.timeout, "Timed out while waiting for a matching element.", null);
+        }
+
+        std.Thread.sleep(@as(u64, resolved_poll_interval_ms) * std.time.ns_per_ms);
+    }
+}
+
 pub fn waitWindow(allocator: std.mem.Allocator, title: []const u8, timeout_ms: u64, match_mode: core.model.StringMatchMode, foreground_only: bool) !core.model.WaitWindowResponse {
     return switch (builtin.os.tag) {
         .windows => windows.runtime.waitWindow(allocator, title, timeout_ms, match_mode, foreground_only),
@@ -405,5 +507,142 @@ pub fn waitProcess(allocator: std.mem.Allocator, name: ?[]const u8, pid: ?u32, e
         .linux => linux.runtime.waitProcess(allocator, name, pid, expect_running, timeout_ms, match_mode),
         .macos => mac.runtime.waitProcess(allocator, name, pid, expect_running, timeout_ms, match_mode),
         else => core.model.failure(core.model.WaitProcess, "wait.process", core.errors.codes.unsupported_host, "This host OS is outside the current EasyTouch support matrix.", null),
+    };
+}
+
+fn nowMs() u64 {
+    return @intCast(std.time.milliTimestamp());
+}
+
+fn elementQueryHasSelector(query: core.model.ElementQuery) bool {
+    return query.element_id != null or
+        query.name != null or
+        query.automation_id != null or
+        query.class_name != null or
+        query.control_type != null or
+        query.framework_id != null;
+}
+
+fn isSupportedInvokeAction(action: []const u8) bool {
+    return std.ascii.eqlIgnoreCase(action, "invoke") or
+        std.ascii.eqlIgnoreCase(action, "click") or
+        std.ascii.eqlIgnoreCase(action, "press");
+}
+
+fn buildElementMatchDetail(allocator: std.mem.Allocator, tree: core.model.ElementTree, query: core.model.ElementQuery, element: core.model.UiElementRef) !core.model.ElementMatchDetail {
+    return .{
+        .window_handle = tree.window_handle,
+        .window_title = tree.window_title,
+        .generated_at = tree.generated_at,
+        .matched_by = try buildElementMatchReason(allocator, query),
+        .element = element,
+    };
+}
+
+fn cloneElementMatchDetail(allocator: std.mem.Allocator, detail: core.model.ElementMatchDetail) !core.model.ElementMatchDetail {
+    return .{
+        .window_handle = detail.window_handle,
+        .window_title = try allocator.dupe(u8, detail.window_title),
+        .generated_at = try allocator.dupe(u8, detail.generated_at),
+        .matched_by = try allocator.dupe(u8, detail.matched_by),
+        .element = try cloneUiElementRef(allocator, detail.element),
+    };
+}
+
+fn cloneUiElementRef(allocator: std.mem.Allocator, element: core.model.UiElementRef) !core.model.UiElementRef {
+    return .{
+        .element_id = try allocator.dupe(u8, element.element_id),
+        .name = try allocator.dupe(u8, element.name),
+        .automation_id = try allocator.dupe(u8, element.automation_id),
+        .class_name = try allocator.dupe(u8, element.class_name),
+        .control_type = try allocator.dupe(u8, element.control_type),
+        .framework_id = try allocator.dupe(u8, element.framework_id),
+        .is_enabled = element.is_enabled,
+        .is_offscreen = element.is_offscreen,
+        .has_keyboard_focus = element.has_keyboard_focus,
+        .bounds = element.bounds,
+        .center = element.center,
+    };
+}
+
+fn buildElementMatchReason(allocator: std.mem.Allocator, query: core.model.ElementQuery) ![]const u8 {
+    var fields = std.ArrayList([]const u8).empty;
+    defer fields.deinit(allocator);
+
+    if (query.element_id != null) try fields.append(allocator, "element_id");
+    if (query.name != null) try fields.append(allocator, "name");
+    if (query.automation_id != null) try fields.append(allocator, "automation_id");
+    if (query.class_name != null) try fields.append(allocator, "class_name");
+    if (query.control_type != null) try fields.append(allocator, "control_type");
+    if (query.framework_id != null) try fields.append(allocator, "framework_id");
+    if (query.enabled_only) try fields.append(allocator, "enabled_only");
+    if (query.focus_only) try fields.append(allocator, "focus_only");
+
+    var buffer = std.ArrayList(u8).empty;
+    defer buffer.deinit(allocator);
+
+    for (fields.items, 0..) |field, index| {
+        if (index > 0) try buffer.appendSlice(allocator, "+");
+        try buffer.appendSlice(allocator, field);
+    }
+
+    if (buffer.items.len == 0) {
+        try buffer.appendSlice(allocator, "query");
+    }
+
+    return try buffer.toOwnedSlice(allocator);
+}
+
+fn findMatchingElement(node: core.model.UiElementNode, query: core.model.ElementQuery) ?core.model.UiElementRef {
+    if (nodeMatchesQuery(node, query)) {
+        return uiElementRefFromNode(node);
+    }
+
+    for (node.children) |child| {
+        if (findMatchingElement(child, query)) |match| {
+            return match;
+        }
+    }
+
+    return null;
+}
+
+fn uiElementRefFromNode(node: core.model.UiElementNode) core.model.UiElementRef {
+    return .{
+        .element_id = node.element_id,
+        .name = node.name,
+        .automation_id = node.automation_id,
+        .class_name = node.class_name,
+        .control_type = node.control_type,
+        .framework_id = node.framework_id,
+        .is_enabled = node.is_enabled,
+        .is_offscreen = node.is_offscreen,
+        .has_keyboard_focus = node.has_keyboard_focus,
+        .bounds = node.bounds,
+        .center = node.center,
+    };
+}
+
+fn nodeMatchesQuery(node: core.model.UiElementNode, query: core.model.ElementQuery) bool {
+    if (query.enabled_only and !node.is_enabled) return false;
+    if (query.focus_only and !node.has_keyboard_focus) return false;
+
+    if (query.element_id) |value| {
+        if (!std.mem.eql(u8, node.element_id, value)) return false;
+    }
+    if (!queryStringMatches(node.name, query.name, query.match_mode)) return false;
+    if (!queryStringMatches(node.automation_id, query.automation_id, query.match_mode)) return false;
+    if (!queryStringMatches(node.class_name, query.class_name, query.match_mode)) return false;
+    if (!queryStringMatches(node.control_type, query.control_type, query.match_mode)) return false;
+    if (!queryStringMatches(node.framework_id, query.framework_id, query.match_mode)) return false;
+
+    return true;
+}
+
+fn queryStringMatches(candidate: []const u8, wanted: ?[]const u8, match_mode: core.model.StringMatchMode) bool {
+    const text = wanted orelse return true;
+    return switch (match_mode) {
+        .exact => std.mem.eql(u8, candidate, text),
+        .contains => std.mem.indexOf(u8, candidate, text) != null,
     };
 }

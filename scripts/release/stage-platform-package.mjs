@@ -75,6 +75,13 @@ for (const { arch, sourcePath } of binarySpecs) {
 const launcherPath = path.join(outputDir, "bin", "et.js");
 await fs.chmod(launcherPath, 0o755);
 
+const initScriptPath = path.join(outputDir, "init.js");
+try {
+  await fs.chmod(initScriptPath, 0o755);
+} catch {
+  // Optional for templates that do not ship init.js.
+}
+
 console.log(
   `staged ${path.relative(repoRoot, outputDir)} with architectures ${binarySpecs
     .map((entry) => entry.arch)

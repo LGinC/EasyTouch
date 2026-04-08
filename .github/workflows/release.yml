@@ -229,6 +229,35 @@ jobs:
           name: npm-${{ matrix.package_name }}
           path: dist/npm/${{ matrix.package_name }}
 
+  stage-root-npm:
+    name: stage-easytouch-root
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js for staging
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Normalize npm package versions
+        run: node scripts/release/set-version.mjs ${{ github.ref_name }}
+
+      - name: Stage root npm package
+        run: |
+          node scripts/release/stage-root-package.mjs \
+            --template packages/easytouch \
+            --output dist/npm/easytouch
+
+      - name: Upload npm root artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-easytouch-root
+          path: dist/npm/easytouch
+
   publish-platform-npm:
     name: publish-${{ matrix.package_name }}
     needs: stage-platform-npm
@@ -237,7 +266,7 @@ jobs:
       contents: read
       id-token: write
     env:
-      NODE_AUTH_TOKEN: ${{ secrets.NPMTOKEN != '' && secrets.NPMTOKEN || vars.NPMTOKEN }}
+      NODE_AUTH_TOKEN: ${{ secrets.NPMTOKEN || vars.NPMTOKEN }}
     strategy:
       fail-fast: false
       matrix:
@@ -266,13 +295,64 @@ jobs:
           if [ -n "${NODE_AUTH_TOKEN:-}" ]; then
             echo "Using NODE_AUTH_TOKEN fallback for npm publish."
           else
-            echo "No NODE_AUTH_TOKEN provided; relying on npm Trusted Publishing configuration."
+            echo "Relying on npm Trusted Publishing / OIDC for publish authentication."
           fi
+
+      - name: Show staged platform package identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          node -e "const pkg=require('./dist/npm/${{ matrix.package_name }}/package.json'); console.log(pkg.name + '@' + pkg.version)"
 
       - name: Dry-run platform package
         run: npm pack --dry-run ./dist/npm/${{ matrix.package_name }}
 
       - name: Publish platform package
-        env:
-          NODE_AUTH_TOKEN: ${{ env.NODE_AUTH_TOKEN }}
         run: npm publish --access public --provenance ./dist/npm/${{ matrix.package_name }}
+
+  publish-root-npm:
+    name: publish-@whuanle/easytouch
+    needs:
+      - stage-root-npm
+      - publish-platform-npm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPMTOKEN || vars.NPMTOKEN }}
+
+    steps:
+      - name: Download root npm artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: npm-easytouch-root
+          path: dist/npm/easytouch
+
+      - name: Set up Node.js for npm publish
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+
+      - name: Show npm auth mode
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "Using NODE_AUTH_TOKEN fallback for npm publish."
+          else
+            echo "Relying on npm Trusted Publishing / OIDC for publish authentication."
+          fi
+
+      - name: Show staged root package identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          node -e "const pkg=require('./dist/npm/easytouch/package.json'); console.log(pkg.name + '@' + pkg.version)"
+
+      - name: Dry-run root package
+        run: npm pack --dry-run ./dist/npm/easytouch
+
+      - name: Publish root package
+        run: npm publish --access public --provenance ./dist/npm/easytouch

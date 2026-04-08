@@ -1655,6 +1655,155 @@ pub fn screenDisplays(allocator: std.mem.Allocator) !core.model.DisplayListRespo
     });
 }
 
+pub fn elementTree(allocator: std.mem.Allocator, window_handle: ?u64, max_depth: ?u32, max_children: ?u32, max_nodes: ?u32, include_offscreen: bool) !core.model.ElementTreeResponse {
+    const target_handle = if (window_handle) |value|
+        value
+    else blk: {
+        const foreground = GetForegroundWindow() orelse {
+            return core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.not_found, "No foreground window is available for element tree inspection.", null);
+        };
+        break :blk @intFromPtr(foreground);
+    };
+
+    if (target_handle == 0) {
+        return core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.invalid_args, "window_handle must be non-zero when provided.", null);
+    }
+
+    const hwnd: HWND = @ptrFromInt(target_handle);
+    if (IsWindow(hwnd) == 0) {
+        return core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.not_found, "The requested window_handle is not a valid window.", try std.fmt.allocPrint(allocator, "window_handle=0x{x}", .{target_handle}));
+    }
+
+    const resolved_max_depth = max_depth orelse 4;
+    if (resolved_max_depth == 0 or resolved_max_depth > 12) {
+        return core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.invalid_args, "max_depth must be in range 1..12.", null);
+    }
+
+    const resolved_max_children = max_children orelse 20;
+    if (resolved_max_children == 0 or resolved_max_children > 100) {
+        return core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.invalid_args, "max_children must be in range 1..100.", null);
+    }
+
+    const resolved_max_nodes = max_nodes orelse 250;
+    if (resolved_max_nodes == 0 or resolved_max_nodes > 1500) {
+        return core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.invalid_args, "max_nodes must be in range 1..1500.", null);
+    }
+
+    const script = try buildElementTreePowerShellScript(allocator, target_handle, resolved_max_depth, resolved_max_children, resolved_max_nodes, include_offscreen);
+    const output = try runPowerShellCommand(allocator, script);
+    if (output.missing) {
+        return core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.not_implemented, "powershell.exe was not found, so Windows UI Automation inspection is unavailable.", output.stderr);
+    }
+    if (output.exit_code == null) {
+        return core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.system_error, "PowerShell UI Automation command did not exit normally.", try powerShellCommandDetail(allocator, output));
+    }
+    if (output.exit_code.? != 0) {
+        return core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.system_error, "PowerShell UI Automation command returned a non-zero exit code.", try powerShellCommandDetail(allocator, output));
+    }
+
+    const parsed = std.json.parseFromSlice(PowerShellElementTreePayload, allocator, output.stdout, .{ .ignore_unknown_fields = true }) catch |err| {
+        const detail = try std.fmt.allocPrint(allocator, "parse_error={s}; detail={s}", .{ @errorName(err), powerShellTextSnippet(output.stdout) });
+        return core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.system_error, "Failed to parse UI Automation element tree JSON.", detail);
+    };
+    const payload = parsed.value;
+
+    if (!payload.ok) {
+        return core.model.failure(core.model.ElementTree, "element.tree", payload.code orelse core.errors.codes.system_error, payload.message orelse "UI Automation element tree inspection failed.", payload.detail);
+    }
+
+    const root = payload.root orelse {
+        return core.model.failure(core.model.ElementTree, "element.tree", core.errors.codes.system_error, "UI Automation element tree response did not include a root node.", powerShellTextSnippet(output.stdout));
+    };
+
+    return core.model.success("element.tree", core.model.ElementTree{
+        .window_handle = payload.window_handle orelse target_handle,
+        .window_title = payload.window_title orelse try allocator.dupe(u8, ""),
+        .generated_at = payload.generated_at orelse try allocator.dupe(u8, ""),
+        .max_depth = payload.max_depth orelse resolved_max_depth,
+        .max_children = payload.max_children orelse resolved_max_children,
+        .max_nodes = payload.max_nodes orelse resolved_max_nodes,
+        .include_offscreen = payload.include_offscreen orelse include_offscreen,
+        .root = root,
+    });
+}
+
+pub fn elementClick(allocator: std.mem.Allocator, element_id: []const u8, window_handle: ?u64, button: core.model.MouseButton, move_duration_ms: ?u32) !core.model.AckResponse {
+    if (element_id.len == 0) {
+        return core.model.failure(core.model.Ack, "element.click", core.errors.codes.invalid_args, "element_id cannot be empty.", null);
+    }
+
+    const target_handle = if (window_handle) |value|
+        value
+    else blk: {
+        const foreground = GetForegroundWindow() orelse {
+            return core.model.failure(core.model.Ack, "element.click", core.errors.codes.not_found, "No foreground window is available for element click.", null);
+        };
+        break :blk @intFromPtr(foreground);
+    };
+
+    if (target_handle == 0) {
+        return core.model.failure(core.model.Ack, "element.click", core.errors.codes.invalid_args, "window_handle must be non-zero when provided.", null);
+    }
+
+    const hwnd: HWND = @ptrFromInt(target_handle);
+    if (IsWindow(hwnd) == 0) {
+        return core.model.failure(core.model.Ack, "element.click", core.errors.codes.not_found, "The requested window_handle is not a valid window.", try std.fmt.allocPrint(allocator, "window_handle=0x{x}", .{target_handle}));
+    }
+
+    const script = try buildElementClickPowerShellScript(allocator, target_handle, element_id);
+    const output = try runPowerShellCommand(allocator, script);
+    if (output.missing) {
+        return core.model.failure(core.model.Ack, "element.click", core.errors.codes.not_implemented, "powershell.exe was not found, so Windows UI Automation element lookup is unavailable.", output.stderr);
+    }
+    if (output.exit_code == null) {
+        return core.model.failure(core.model.Ack, "element.click", core.errors.codes.system_error, "PowerShell UI Automation element lookup did not exit normally.", try powerShellCommandDetail(allocator, output));
+    }
+    if (output.exit_code.? != 0) {
+        return core.model.failure(core.model.Ack, "element.click", core.errors.codes.system_error, "PowerShell UI Automation element lookup returned a non-zero exit code.", try powerShellCommandDetail(allocator, output));
+    }
+
+    const parsed = std.json.parseFromSlice(PowerShellElementClickPayload, allocator, output.stdout, .{ .ignore_unknown_fields = true }) catch |err| {
+        const detail = try std.fmt.allocPrint(allocator, "parse_error={s}; detail={s}", .{ @errorName(err), powerShellTextSnippet(output.stdout) });
+        return core.model.failure(core.model.Ack, "element.click", core.errors.codes.system_error, "Failed to parse UI Automation element lookup JSON.", detail);
+    };
+    const payload = parsed.value;
+
+    if (!payload.ok) {
+        return core.model.failure(core.model.Ack, "element.click", payload.code orelse core.errors.codes.system_error, payload.message orelse "UI Automation element lookup failed.", payload.detail);
+    }
+
+    const bounds = payload.bounds orelse {
+        return core.model.failure(core.model.Ack, "element.click", core.errors.codes.system_error, "UI Automation element lookup did not include bounds.", powerShellTextSnippet(output.stdout));
+    };
+    const center = payload.center orelse {
+        return core.model.failure(core.model.Ack, "element.click", core.errors.codes.system_error, "UI Automation element lookup did not include a click center.", powerShellTextSnippet(output.stdout));
+    };
+
+    if ((payload.is_offscreen orelse false) or bounds.width <= 0 or bounds.height <= 0) {
+        return core.model.failure(core.model.Ack, "element.click", core.errors.codes.unsafe_operation, "The requested element does not currently expose a clickable on-screen bounding rectangle.", try std.fmt.allocPrint(allocator, "element_id={s}; is_offscreen={s}; bounds={d},{d},{d},{d}", .{ element_id, if (payload.is_offscreen orelse false) "true" else "false", bounds.left, bounds.top, bounds.right, bounds.bottom }));
+    }
+
+    const activation = try windowActivate(allocator, target_handle);
+    if (!activation.ok) {
+        return activation;
+    }
+
+    const move_response = try mouseMove(allocator, center.x, center.y, move_duration_ms orelse 120, 0, 6);
+    if (!move_response.ok) {
+        return move_response;
+    }
+
+    const click_response = try mouseClick(allocator, button, 1);
+    if (!click_response.ok) {
+        return click_response;
+    }
+
+    return core.model.success("element.click", core.model.Ack{
+        .message = "Element center click sent.",
+        .detail = try std.fmt.allocPrint(allocator, "window_handle=0x{x}; element_id={s}; name={s}; control_type={s}; center={d},{d}; button={s}", .{ target_handle, payload.element_id orelse element_id, payload.name orelse "", payload.control_type orelse "", center.x, center.y, mouseButtonName(button) }),
+    });
+}
+
 pub fn waitWindow(allocator: std.mem.Allocator, title: []const u8, timeout_ms: u64, match_mode: core.model.StringMatchMode, foreground_only: bool) !core.model.WaitWindowResponse {
     const start_ms = std.time.milliTimestamp();
     while (true) {
@@ -2180,6 +2329,376 @@ fn titleMatches(candidate: []const u8, wanted: []const u8, match_mode: core.mode
     return switch (match_mode) {
         .exact => std.mem.eql(u8, candidate, wanted),
         .contains => std.mem.indexOf(u8, candidate, wanted) != null,
+    };
+}
+
+const PowerShellCommandOutput = struct {
+    stdout: []const u8,
+    stderr: []const u8,
+    exit_code: ?u32,
+    missing: bool,
+};
+
+const PowerShellElementTreePayload = struct {
+    ok: bool,
+    code: ?[]const u8 = null,
+    message: ?[]const u8 = null,
+    detail: ?[]const u8 = null,
+    window_handle: ?u64 = null,
+    window_title: ?[]const u8 = null,
+    generated_at: ?[]const u8 = null,
+    max_depth: ?u32 = null,
+    max_children: ?u32 = null,
+    max_nodes: ?u32 = null,
+    include_offscreen: ?bool = null,
+    root: ?core.model.UiElementNode = null,
+};
+
+const PowerShellElementClickPayload = struct {
+    ok: bool,
+    code: ?[]const u8 = null,
+    message: ?[]const u8 = null,
+    detail: ?[]const u8 = null,
+    window_handle: ?u64 = null,
+    element_id: ?[]const u8 = null,
+    name: ?[]const u8 = null,
+    control_type: ?[]const u8 = null,
+    is_offscreen: ?bool = null,
+    bounds: ?core.model.Rect = null,
+    center: ?core.model.Point = null,
+};
+
+fn buildElementTreePowerShellScript(allocator: std.mem.Allocator, window_handle: u64, max_depth: u32, max_children: u32, max_nodes: u32, include_offscreen: bool) ![]const u8 {
+    var script = std.ArrayList(u8).empty;
+    errdefer script.deinit(allocator);
+
+    try script.appendSlice(allocator,
+        \\$ErrorActionPreference = 'Stop'
+        \\[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+        \\Add-Type -AssemblyName UIAutomationClient
+        \\Add-Type -AssemblyName UIAutomationTypes
+        \\
+        \\function Safe-String {
+        \\    param($Value)
+        \\    if ($null -eq $Value) { return '' }
+        \\    return [string]$Value
+        \\}
+        \\
+        \\function Convert-ControlType {
+        \\    param($ControlType)
+        \\    if ($null -eq $ControlType) { return '' }
+        \\    $name = Safe-String $ControlType.ProgrammaticName
+        \\    if ($name.StartsWith('ControlType.')) { return $name.Substring(12) }
+        \\    return $name
+        \\}
+        \\
+        \\function Convert-Rect {
+        \\    param($Rect)
+        \\    $left = [int][math]::Round($Rect.Left)
+        \\    $top = [int][math]::Round($Rect.Top)
+        \\    $right = [int][math]::Round($Rect.Right)
+        \\    $bottom = [int][math]::Round($Rect.Bottom)
+        \\    [pscustomobject]@{
+        \\        left = $left
+        \\        top = $top
+        \\        right = $right
+        \\        bottom = $bottom
+        \\        width = [int]($right - $left)
+        \\        height = [int]($bottom - $top)
+        \\    }
+        \\}
+        \\
+        \\function Convert-Center {
+        \\    param($Rect)
+        \\    $left = [int][math]::Round($Rect.Left)
+        \\    $top = [int][math]::Round($Rect.Top)
+        \\    $right = [int][math]::Round($Rect.Right)
+        \\    $bottom = [int][math]::Round($Rect.Bottom)
+        \\    [pscustomobject]@{
+        \\        x = [int][math]::Round(($left + $right) / 2)
+        \\        y = [int][math]::Round(($top + $bottom) / 2)
+        \\    }
+        \\}
+        \\
+    );
+
+    var writer = script.writer(allocator);
+    try writer.print("$windowHandle = [uint64]{d}\n", .{window_handle});
+    try writer.print("$maxDepth = [int]{d}\n", .{max_depth});
+    try writer.print("$maxChildren = [int]{d}\n", .{max_children});
+    try writer.print("$maxNodes = [int]{d}\n", .{max_nodes});
+    try writer.print("$includeOffscreen = {s}\n", .{if (include_offscreen) "$true" else "$false"});
+
+    try script.appendSlice(allocator,
+        \\$walker = [System.Windows.Automation.TreeWalker]::RawViewWalker
+        \\$script:emittedNodes = 0
+        \\
+        \\function Get-Node {
+        \\    param(
+        \\        [System.Windows.Automation.AutomationElement]$Element,
+        \\        [string]$Path,
+        \\        [int]$Depth
+        \\    )
+        \\    if ($script:emittedNodes -ge $maxNodes) { return $null }
+        \\    $script:emittedNodes += 1
+        \\    $current = $Element.Current
+        \\    $bounds = Convert-Rect $current.BoundingRectangle
+        \\    $center = Convert-Center $current.BoundingRectangle
+        \\    $children = @()
+        \\    if ($Depth -lt $maxDepth -and $script:emittedNodes -lt $maxNodes) {
+        \\        $child = $walker.GetFirstChild($Element)
+        \\        $rawIndex = 0
+        \\        while ($null -ne $child -and $children.Count -lt $maxChildren -and $script:emittedNodes -lt $maxNodes) {
+        \\            $childCurrent = $child.Current
+        \\            if ($includeOffscreen -or -not [bool]$childCurrent.IsOffscreen) {
+        \\                $childPath = if ($Path -eq 'root') { "root/$rawIndex" } else { "$Path/$rawIndex" }
+        \\                $childNode = Get-Node -Element $child -Path $childPath -Depth ($Depth + 1)
+        \\                if ($null -ne $childNode) {
+        \\                    $children += ,$childNode
+        \\                }
+        \\            }
+        \\            $child = $walker.GetNextSibling($child)
+        \\            $rawIndex += 1
+        \\        }
+        \\    }
+        \\    [pscustomobject]@{
+        \\        element_id = $Path
+        \\        name = Safe-String $current.Name
+        \\        automation_id = Safe-String $current.AutomationId
+        \\        class_name = Safe-String $current.ClassName
+        \\        control_type = Convert-ControlType $current.ControlType
+        \\        framework_id = Safe-String $current.FrameworkId
+        \\        is_enabled = [bool]$current.IsEnabled
+        \\        is_offscreen = [bool]$current.IsOffscreen
+        \\        has_keyboard_focus = [bool]$current.HasKeyboardFocus
+        \\        bounds = $bounds
+        \\        center = $center
+        \\        children = $children
+        \\    }
+        \\}
+        \\
+        \\try {
+        \\    $root = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]::new([Int64]$windowHandle))
+        \\    if ($null -eq $root) { throw 'UI Automation could not resolve the requested window handle.' }
+        \\    $result = [pscustomobject]@{
+        \\        ok = $true
+        \\        window_handle = $windowHandle
+        \\        window_title = Safe-String $root.Current.Name
+        \\        generated_at = [DateTime]::UtcNow.ToString('o')
+        \\        max_depth = [uint32]$maxDepth
+        \\        max_children = [uint32]$maxChildren
+        \\        max_nodes = [uint32]$maxNodes
+        \\        include_offscreen = [bool]$includeOffscreen
+        \\        root = Get-Node -Element $root -Path 'root' -Depth 0
+        \\    }
+        \\} catch {
+        \\    $result = [pscustomobject]@{
+        \\        ok = $false
+        \\        code = 'system_error'
+        \\        message = 'UI Automation element tree inspection failed.'
+        \\        detail = Safe-String $_.Exception.Message
+        \\    }
+        \\}
+        \\$result | ConvertTo-Json -Depth 100 -Compress
+    );
+
+    return script.toOwnedSlice(allocator);
+}
+
+fn buildElementClickPowerShellScript(allocator: std.mem.Allocator, window_handle: u64, element_id: []const u8) ![]const u8 {
+    const escaped_element_id = try escapeForSingleQuotedPowerShell(allocator, element_id);
+    defer allocator.free(escaped_element_id);
+
+    var script = std.ArrayList(u8).empty;
+    errdefer script.deinit(allocator);
+
+    try script.appendSlice(allocator,
+        \\$ErrorActionPreference = 'Stop'
+        \\[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+        \\Add-Type -AssemblyName UIAutomationClient
+        \\Add-Type -AssemblyName UIAutomationTypes
+        \\
+        \\function Safe-String {
+        \\    param($Value)
+        \\    if ($null -eq $Value) { return '' }
+        \\    return [string]$Value
+        \\}
+        \\
+        \\function Convert-ControlType {
+        \\    param($ControlType)
+        \\    if ($null -eq $ControlType) { return '' }
+        \\    $name = Safe-String $ControlType.ProgrammaticName
+        \\    if ($name.StartsWith('ControlType.')) { return $name.Substring(12) }
+        \\    return $name
+        \\}
+        \\
+        \\function Convert-Rect {
+        \\    param($Rect)
+        \\    $left = [int][math]::Round($Rect.Left)
+        \\    $top = [int][math]::Round($Rect.Top)
+        \\    $right = [int][math]::Round($Rect.Right)
+        \\    $bottom = [int][math]::Round($Rect.Bottom)
+        \\    [pscustomobject]@{
+        \\        left = $left
+        \\        top = $top
+        \\        right = $right
+        \\        bottom = $bottom
+        \\        width = [int]($right - $left)
+        \\        height = [int]($bottom - $top)
+        \\    }
+        \\}
+        \\
+        \\function Convert-Center {
+        \\    param($Rect)
+        \\    $left = [int][math]::Round($Rect.Left)
+        \\    $top = [int][math]::Round($Rect.Top)
+        \\    $right = [int][math]::Round($Rect.Right)
+        \\    $bottom = [int][math]::Round($Rect.Bottom)
+        \\    [pscustomobject]@{
+        \\        x = [int][math]::Round(($left + $right) / 2)
+        \\        y = [int][math]::Round(($top + $bottom) / 2)
+        \\    }
+        \\}
+        \\
+    );
+
+    var writer = script.writer(allocator);
+    try writer.print("$windowHandle = [uint64]{d}\n", .{window_handle});
+    try writer.print("$elementId = '{s}'\n", .{escaped_element_id});
+
+    try script.appendSlice(allocator,
+        \\$walker = [System.Windows.Automation.TreeWalker]::RawViewWalker
+        \\
+        \\function Resolve-Element {
+        \\    param(
+        \\        [System.Windows.Automation.AutomationElement]$Root,
+        \\        [string]$Path
+        \\    )
+        \\    if ([string]::IsNullOrWhiteSpace($Path) -or $Path -eq 'root') { return $Root }
+        \\    $segments = $Path.Split('/')
+        \\    $current = $Root
+        \\    foreach ($segment in $segments) {
+        \\        if ($segment -eq '' -or $segment -eq 'root') { continue }
+        \\        [int]$wanted = 0
+        \\        if (-not [int]::TryParse($segment, [ref]$wanted)) {
+        \\            throw "Invalid element path segment '$segment'."
+        \\        }
+        \\        $child = $walker.GetFirstChild($current)
+        \\        $index = 0
+        \\        while ($null -ne $child -and $index -lt $wanted) {
+        \\            $child = $walker.GetNextSibling($child)
+        \\            $index += 1
+        \\        }
+        \\        if ($null -eq $child) {
+        \\            throw "Element path segment '$segment' was not found."
+        \\        }
+        \\        $current = $child
+        \\    }
+        \\    return $current
+        \\}
+        \\
+        \\try {
+        \\    $root = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]::new([Int64]$windowHandle))
+        \\    if ($null -eq $root) { throw 'UI Automation could not resolve the requested window handle.' }
+        \\    $target = Resolve-Element -Root $root -Path $elementId
+        \\    $current = $target.Current
+        \\    $result = [pscustomobject]@{
+        \\        ok = $true
+        \\        window_handle = $windowHandle
+        \\        element_id = $elementId
+        \\        name = Safe-String $current.Name
+        \\        control_type = Convert-ControlType $current.ControlType
+        \\        is_offscreen = [bool]$current.IsOffscreen
+        \\        bounds = Convert-Rect $current.BoundingRectangle
+        \\        center = Convert-Center $current.BoundingRectangle
+        \\    }
+        \\} catch {
+        \\    $message = Safe-String $_.Exception.Message
+        \\    $errorCode = if ($message -like 'Element path segment*' -or $message -like 'UI Automation could not resolve*') { 'not_found' } else { 'system_error' }
+        \\    $result = [pscustomobject]@{
+        \\        ok = $false
+        \\        code = $errorCode
+        \\        message = 'UI Automation element lookup failed.'
+        \\        detail = $message
+        \\    }
+        \\}
+        \\$result | ConvertTo-Json -Depth 20 -Compress
+    );
+
+    return script.toOwnedSlice(allocator);
+}
+
+fn runPowerShellCommand(allocator: std.mem.Allocator, script: []const u8) !PowerShellCommandOutput {
+    const result = std.process.Child.run(.{
+        .allocator = allocator,
+        .argv = &[_][]const u8{ "powershell.exe", "-NoProfile", "-STA", "-Command", script },
+        .max_output_bytes = 4 * 1024 * 1024,
+    }) catch |err| switch (err) {
+        error.OutOfMemory => return err,
+        error.FileNotFound => return .{
+            .stdout = &.{},
+            .stderr = try allocator.dupe(u8, "powershell.exe was not found."),
+            .exit_code = null,
+            .missing = true,
+        },
+        else => return .{
+            .stdout = &.{},
+            .stderr = try allocator.dupe(u8, @errorName(err)),
+            .exit_code = null,
+            .missing = false,
+        },
+    };
+
+    return .{
+        .stdout = result.stdout,
+        .stderr = result.stderr,
+        .exit_code = switch (result.term) {
+            .Exited => |code| code,
+            else => null,
+        },
+        .missing = false,
+    };
+}
+
+fn powerShellCommandDetail(allocator: std.mem.Allocator, output: PowerShellCommandOutput) !?[]const u8 {
+    const stderr = std.mem.trim(u8, output.stderr, " \t\r\n");
+    const stdout = std.mem.trim(u8, output.stdout, " \t\r\n");
+
+    if (output.exit_code) |code| {
+        if (stderr.len != 0) {
+            const detail = try std.fmt.allocPrint(allocator, "exit_code={d}; stderr={s}", .{ code, powerShellTextSnippet(stderr) });
+            return detail;
+        }
+        if (stdout.len != 0) {
+            const detail = try std.fmt.allocPrint(allocator, "exit_code={d}; stdout={s}", .{ code, powerShellTextSnippet(stdout) });
+            return detail;
+        }
+        const detail = try std.fmt.allocPrint(allocator, "exit_code={d}", .{code});
+        return detail;
+    }
+
+    if (stderr.len != 0) {
+        const detail = try allocator.dupe(u8, powerShellTextSnippet(stderr));
+        return detail;
+    }
+    if (stdout.len != 0) {
+        const detail = try allocator.dupe(u8, powerShellTextSnippet(stdout));
+        return detail;
+    }
+    return null;
+}
+
+fn powerShellTextSnippet(text: []const u8) []const u8 {
+    const trimmed = std.mem.trim(u8, text, " \t\r\n");
+    if (trimmed.len <= 512) return trimmed;
+    return trimmed[0..512];
+}
+
+fn mouseButtonName(button: core.model.MouseButton) []const u8 {
+    return switch (button) {
+        .left => "left",
+        .right => "right",
+        .middle => "middle",
     };
 }
 
