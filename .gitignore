@@ -7,10 +7,6 @@ obj/
 dist/
 out/
 
-# Repo-managed launchers
-!bin/
-!bin/et.js
-
 # Dependencies
 node_modules/
 

@@ -28,29 +28,37 @@ EasyTouch gives AI a pair of eyes and hands. It currently supports:
 
 ### Installation
 
-Install the scoped launcher package if you want automatic platform selection. If you only want the package for the current host OS, you can install the platform package directly.
+Install the aggregated package if you want the `init` helper. If you only want the package for the current host OS, you can install the platform package directly.
 
 ```bash
-# Recommended: auto-select the current platform
+# Recommended: aggregated package, then run easytouch init
 npm i -g @whuanle/easytouch
 
-# Windows
+# Install only the current host platform package
 npm i -g easytouch-windows
-
-# Linux
 npm i -g easytouch-linux
-
-# macOS
 npm i -g easytouch-macos
 ```
 
-`@whuanle/easytouch` delegates to the correct platform package on the current host. Each platform package contains both x64 and arm64 binaries, and the correct one is selected automatically based on the current CPU architecture.
+`@whuanle/easytouch` now bundles the Windows, Linux, and macOS native binaries for both x64 and arm64 directly inside the package. Running `easytouch init` copies out the correct native `et` file for the current host OS and CPU architecture.
 
-On Windows, after installation you will find an executable entry named `et` under `AppData/Roaming/npm`.
+Initialization commands:
 
-![image-20260405194137861](images/image-20260405194137861.png)
+```bash
+# Aggregated package
+easytouch init
+
+# When you install a platform package directly
+easytouch-windows init
+easytouch-linux init
+easytouch-macos init
+```
+
+`init` writes the native binary back into the installed package directory and refreshes the `et` command entry.
 
 ### Usage Example
+
+The following examples assume you have already generated the native `et` binary with `init`.
 
 Capture the screen:
 
@@ -82,49 +90,43 @@ In tools such as Claude, Cursor, VS Code, and Sidecar, MCP configuration is broa
 
 Add the following to your configuration:
 
-**After Local Installation (Recommended)**
+**After Global Installation (Recommended)**
 
-First run:
-
-```bash
-npm i @whuanle/easytouch
-npx @whuanle/easytouch init
-```
-
-When the installed package is `@whuanle/easytouch`, this step first installs the matching platform package for the current host, then copies out the native `et` binary.
-
-If the dependency is already installed in the current project, `node ./node_modules/@whuanle/easytouch/init.js` also works, but only for a local project install.
-
-This generates:
-
-- Windows: `./node_modules/@whuanle/easytouch/et.exe`
-- Linux / macOS: `./node_modules/@whuanle/easytouch/et`
-
-Then point MCP to that native binary directly:
-
-```json
-{
-  "mcpServers": {
-    "easytouch": {
-      "command": "<your-project>/node_modules/@whuanle/easytouch/et",
-      "args": ["mcp-stdio"]
-    }
-  }
-}
-```
-
-> On Windows, use `et.exe` as the filename. On Linux and macOS, use `et`.
-
-**After Global Installation**
-
-If you already use a global install and the host resolves PATH correctly, you can still call the global `et` command. On the first run, the launcher also installs the matching platform package if it is still missing:
+If you install the aggregated package globally, use the helper command to generate the native `et` file:
 
 ```bash
 npm i -g @whuanle/easytouch
-et init
+easytouch init
 ```
 
-After the native binary is prepared, MCP can still call the global `et` command directly:
+By default this writes `et` into the globally installed package directory and refreshes the global `et` command.
+
+The default locations are usually:
+
+- Windows: `<npm root -g>/@whuanle/easytouch/et.exe`
+- Linux / macOS: `<npm root -g>/@whuanle/easytouch/et`
+
+The global command entry is usually:
+
+- Windows: `<npm prefix -g>/et.cmd`
+- Linux / macOS: `<npm prefix -g>/bin/et`
+
+If you want to inspect the actual paths on your machine, run:
+
+```bash
+npm root -g
+npm prefix -g
+```
+
+You can also choose a fixed output path:
+
+```bash
+easytouch init --output <where-you-want-et>
+```
+
+If you install a platform package directly, use `easytouch-windows init`, `easytouch-linux init`, or `easytouch-macos init`.
+
+After the native binary is prepared, point MCP to that file:
 
 ```json
 {
@@ -137,44 +139,7 @@ After the native binary is prepared, MCP can still call the global `et` command 
 }
 ```
 
-If you want to execute the script file manually instead of `et init`, first resolve the global install directory, for example:
-
-```bash
-npm root -g
-```
-
-Then run the `init.js` file from that global path instead of `./node_modules/...`:
-
-```bash
-node <global-install-dir>/@whuanle/easytouch/init.js
-```
-
-**When The Host App Does Not Use PATH (Legacy Path)**
-
-- Windows: set `command` to `C:\\Users\\<your-user>\\AppData\\Roaming\\npm\\et.cmd`
-- Linux / macOS: run `npm prefix -g` first, then set `command` to `<prefix>/bin/et`
-
-**Without Running init.js (Fallback)**
-
-If you do not want to run `init.js`, you can still start the server through `npx`. In that case, use `@whuanle/easytouch` so the package name stays the same across platforms. The first run can take longer because it may install the current platform package automatically.
-
-- Windows: set `command` to `npx.cmd`
-- Linux / macOS: set `command` to `npx`
-
-```json
-{
-  "mcpServers": {
-    "easytouch": {
-      "command": "npx.cmd",
-      "args": ["-y", "@whuanle/easytouch", "mcp-stdio"]
-    }
-  }
-}
-```
-
-> In Windows GUI applications, the most reliable option is the native `et.exe` generated by `init.js`. Only when you still rely on npm bridge commands do you need to care about `npx.cmd` or `et.cmd`; a common symptom is `LOCAL_PROCESS_ERROR`.
-
-On Linux / macOS, switch `command` back to `npx` when using this fallback configuration.
+If the host does not resolve PATH correctly, switch `command` to the real path from `npm prefix -g` or `npm root -g`.
 
 ### Semantic Element Targeting
 

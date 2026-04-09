@@ -7,7 +7,6 @@
 目前支持以下操作系统的 x64 和 ARM64 两种 CPU 架构：
 
 - [x] Windows
-
 - [x] Linux
 - [x] MACOS（目前缺少设备验证功能）
 
@@ -35,33 +34,39 @@
 
 ### 安装
 
-推荐安装带自动平台选择能力的启动包；如果你只想安装当前系统，也可以直接安装对应平台包：
+推荐安装带初始化 helper 的聚合包；如果你只想安装当前系统，也可以直接安装对应平台包：
 
 ```bash
-# 推荐：自动匹配当前平台
+# 推荐：聚合包，执行 easytouch init 生成 et
 npm i -g @whuanle/easytouch
 
-# Windows
+# 只安装当前系统的平台包
 npm i -g easytouch-windows
-
-# Linux
 npm i -g easytouch-linux
-
-# macOS
 npm i -g easytouch-macos
 ```
 
+`@whuanle/easytouch` 会在包内直接附带 Windows、Linux、macOS 的 x64 和 arm64 原生二进制。执行 `easytouch init` 后，会按当前主机平台和 CPU 架构复制出真正可直接调用的 `et` 文件。
 
+初始化命令：
 
-`@whuanle/easytouch` 会在当前主机上调用对应的平台包；平台包内部同时包含 x64 和 arm64 二进制，安装后会根据当前 CPU 架构自动选择对应程序文件。
+```bash
+# 聚合包
+easytouch init
 
-如果是 Windows，安装后在 `AppData/Roaming/npm` 目录会发现名为 `et` 的文件。
+# 只安装当前系统的平台包时
+easytouch-windows init
+easytouch-linux init
+easytouch-macos init
+```
 
-![image-20260405194137861](images/image-20260405194137861.png)
+`init` 默认会把原生文件写回安装包目录，并同步刷新 `et` 命令入口。
 
 
 
 ### 使用示例
+
+以下示例假设你已经通过 `init` 生成好了原生 `et`：
 
 截取屏幕。
 
@@ -107,49 +112,43 @@ npx skills add https://github.com/whuanle/EasyTouch
 
 
 
-**本地安装后（推荐）**
+**全局安装后（推荐）**
 
-先执行：
-
-```bash
-npm i @whuanle/easytouch
-npx @whuanle/easytouch init
-```
-
-如果安装的是 `@whuanle/easytouch`，这一步会先自动安装当前系统对应的平台包，再复制出原生 `et` 文件。
-
-如果你已经在项目里安装了依赖，也可以直接执行 `node ./node_modules/@whuanle/easytouch/init.js`，但这只适用于本地安装目录。
-
-执行后会生成：
-
-- Windows：`./node_modules/@whuanle/easytouch/et.exe`
-- Linux / macOS：`./node_modules/@whuanle/easytouch/et`
-
-然后在 MCP 配置里直接指向这个原生文件：
-
-```json
-{
-  "mcpServers": {
-    "easytouch": {
-      "command": "<你的项目路径>/node_modules/@whuanle/easytouch/et",
-      "args": ["mcp-stdio"]
-    }
-  }
-}
-```
-
-> Windows 请把文件名写成 `et.exe`。Linux / macOS 写 `et`。
-
-**全局安装后**
-
-如果你已经全局安装并且宿主能正确处理 PATH，也仍然可以直接使用全局 `et`。首次运行时，如果平台包还没装好，启动器也会自动补装当前平台包：
+如果你已经全局安装了聚合包，可以直接使用 helper 命令生成原生 `et`：
 
 ```bash
 npm i -g @whuanle/easytouch
-et init
+easytouch init
 ```
 
-生成完原生文件后，MCP 仍然可以直接使用全局 `et`：
+默认会把 `et` 生成到全局安装目录下的包目录里，并同步刷新全局 `et` 命令。
+
+默认路径通常是：
+
+- Windows：`<npm root -g>/@whuanle/easytouch/et.exe`
+- Linux / macOS：`<npm root -g>/@whuanle/easytouch/et`
+
+全局命令入口通常是：
+
+- Windows：`<npm prefix -g>/et.cmd`
+- Linux / macOS：`<npm prefix -g>/bin/et`
+
+如果需要查看你自己机器上的真实路径，可以执行：
+
+```bash
+npm root -g
+npm prefix -g
+```
+
+也可以显式指定输出位置：
+
+```bash
+easytouch init --output <你想放置 et 的路径>
+```
+
+如果你安装的是平台包，初始化命令分别是 `easytouch-windows init`、`easytouch-linux init`、`easytouch-macos init`。
+
+生成完原生文件后，MCP 直接调用这个文件即可：
 
 ```json
 {
@@ -162,44 +161,7 @@ et init
 }
 ```
 
-如果你只是想手工执行脚本而不走 `et init`，需要先找到全局安装目录，例如：
-
-```bash
-npm root -g
-```
-
-然后再执行对应路径下的 `init.js`，而不是 `./node_modules/...`：
-
-```bash
-node <全局安装目录>/@whuanle/easytouch/init.js
-```
-
-**宿主程序不走 PATH 时（旧方式）**
-
-- Windows：把 `command` 改成 `C:\\Users\\<你自己的用户名>\\AppData\\Roaming\\npm\\et.cmd`
-- Linux / macOS：先执行 `npm prefix -g`，然后把 `command` 改成 `<prefix>/bin/et`
-
-**不想初始化原生文件时（备用）**
-
-如果你不想先执行 `init.js`，也可以临时通过 `npx` 启动。这里同样建议统一使用 `@whuanle/easytouch`，不要再按平台分别写包名。首次运行可能会多花一点时间，因为会自动安装当前平台包。
-
-- Windows：`command` 推荐写 `npx.cmd`
-- Linux / macOS：`command` 写 `npx`
-
-```json
-{
-  "mcpServers": {
-    "easytouch": {
-      "command": "npx.cmd",
-      "args": ["-y", "@whuanle/easytouch", "mcp-stdio"]
-    }
-  }
-}
-```
-
-> 如果是在 Windows 的 GUI 程序中配置 MCP，直接用 `init.js` 生成的 `et.exe` 最稳。只有在走 `npx` 或全局 npm 命令时，才需要关心 `npx.cmd`、`et.cmd` 这些桥接文件；常见失败表现就是 `LOCAL_PROCESS_ERROR`。
-
-Linux / macOS 如果使用这段备用配置，把 `command` 改回 `npx` 即可。
+如果宿主程序不走 PATH，再改成 `npm prefix -g` 或 `npm root -g` 对应的实际路径。
 
 ### 语义元素定位
 

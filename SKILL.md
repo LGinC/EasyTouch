@@ -364,21 +364,23 @@ et mcp-stdio --output json
 
 ### 配置示例
 
-优先在安装后执行包内 `init.js`，把真实原生 `et` 程序复制出来，再让 MCP 直接调用这个文件：
+优先在全局安装后执行 `init`，把真实原生 `et` 程序复制出来，再让 MCP 直接调用这个文件：
 
 ```bash
-npm i @whuanle/easytouch
-npx @whuanle/easytouch init
+npm i -g @whuanle/easytouch
+easytouch init
 ```
 
-如果安装的是 `@whuanle/easytouch`，这一步会先自动安装当前系统对应的平台包，再生成原生 `et` 文件。
-
-如果依赖已经装在当前项目里，也可以直接执行 `node ./node_modules/@whuanle/easytouch/init.js`，但这只适用于本地安装目录。
+这一步会直接从包内复制当前主机对应的原生 `et` 文件。
 
 生成后的默认路径：
 
-- Windows：`./node_modules/@whuanle/easytouch/et.exe`
-- Linux / macOS：`./node_modules/@whuanle/easytouch/et`
+- Windows：`<npm root -g>/@whuanle/easytouch/et.exe`
+- Linux / macOS：`<npm root -g>/@whuanle/easytouch/et`
+
+同时会刷新全局 `et` 命令。
+
+也可以通过 `--output` 指定输出位置。
 
 推荐配置：
 
@@ -386,7 +388,7 @@ npx @whuanle/easytouch init
 {
   "mcpServers": {
     "easytouch": {
-      "command": "<你的项目路径>/node_modules/@whuanle/easytouch/et",
+      "command": "et",
       "args": ["mcp-stdio"]
     }
   }
@@ -395,39 +397,17 @@ npx @whuanle/easytouch init
 
 Windows 请把文件名写成 `et.exe`。Linux / macOS 写 `et`。
 
-如果是全局安装：
+默认会把 `et` 生成到全局安装目录下的包目录里，并同步刷新全局 `et` 命令。也可以显式指定输出路径：
 
 ```bash
-npm i -g @whuanle/easytouch
-et init
+easytouch init --output <你想放置 et 的路径>
 ```
 
-不要再写成 `node ./node_modules/@whuanle/easytouch/init.js`，因为全局安装不在当前项目目录下。
+如果你直接安装的是平台包，初始化命令分别是 `easytouch-windows init`、`easytouch-linux init`、`easytouch-macos init`。
 
-如果你已经全局安装并且宿主能正确处理 PATH，也可以继续直接调用全局 `et`。首次运行时，如果平台包缺失，启动器也会自动安装当前平台包。
+如果需要查看实际路径，可以执行 `npm root -g` 和 `npm prefix -g`。
 
-如果宿主程序不能从 PATH 找到命令，旧方式仍可用：
-
-- Windows：把 `command` 改成 `C:\Users\<你自己的用户名>\AppData\Roaming\npm\et.cmd`
-- Linux / macOS：先执行 `npm prefix -g`，再把 `command` 改成 `<prefix>/bin/et`
-
-如果不想执行 `init.js`，也可以临时通过 `npx` 启动。首次运行可能会稍慢，因为会自动安装当前平台包：
-
-- Windows：`command` 推荐写 `npx.cmd`
-- Linux / macOS：`command` 写 `npx`
-
-```json
-{
-  "mcpServers": {
-    "easytouch": {
-      "command": "npx.cmd",
-      "args": ["-y", "@whuanle/easytouch", "mcp-stdio"]
-    }
-  }
-}
-```
-
-Linux / macOS 如果使用这段备用配置，把 `command` 改回 `npx` 即可。
+如果宿主能正确处理 PATH，MCP 直接写 `command: "et"` 即可；否则改成 `npm prefix -g` 或 `npm root -g` 对应的实际路径。
 
 如果 Windows 宿主报 `LOCAL_PROCESS_ERROR`，优先改用 `init.js` 生成的 `et.exe`；如果仍走 npm 命令，再检查这里是不是还写成了 `npx`。
 

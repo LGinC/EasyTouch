@@ -82,10 +82,44 @@ jobs:
           node dist/npm/${{ matrix.package_name }}/init.js --output dist/init/${{ matrix.binary_name }} --force
           node -e "const fs=require('node:fs'); if (!fs.existsSync('dist/init/${{ matrix.binary_name }}')) process.exit(1);"
 
+      - name: Smoke test platform tarball install (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist/tarballs | Out-Null
+          $tgz = npm pack ./dist/npm/${{ matrix.package_name }} --pack-destination dist/tarballs | Select-Object -Last 1
+          Remove-Item -Recurse -Force dist/install/platform -ErrorAction SilentlyContinue
+          npm install --prefix dist/install/platform (Join-Path $PWD "dist/tarballs/$tgz")
+          & ".\dist\install\platform\node_modules\.bin\et_x64.cmd" status
+          & ".\dist\install\platform\node_modules\.bin\${{ matrix.package_name }}.cmd" init --force
+          if (-not (Test-Path ".\dist\install\platform\node_modules\${{ matrix.package_name }}\et.exe")) {
+            exit 1
+          }
+          & ".\dist\install\platform\node_modules\.bin\et.cmd" status
+
+      - name: Smoke test platform tarball install (POSIX)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p dist/tarballs
+          tgz=$(npm pack ./dist/npm/${{ matrix.package_name }} --pack-destination dist/tarballs | tail -n 1)
+          rm -rf dist/install/platform
+          npm install --prefix dist/install/platform "$PWD/dist/tarballs/$tgz"
+          ./dist/install/platform/node_modules/.bin/et_x64 status
+          ./dist/install/platform/node_modules/.bin/${{ matrix.package_name }} init --force
+          test -f dist/install/platform/node_modules/${{ matrix.package_name }}/et
+          ./dist/install/platform/node_modules/.bin/et status
+
       - name: Dry-run aggregated npm package
         if: runner.os == 'Linux'
+        shell: bash
         run: |
+          set -euxo pipefail
           node scripts/release/set-version.mjs 0.1.0-ci
+          mkdir -p dist/raw/linux/x64
+          cp zig-out/bin/et dist/raw/linux/x64/et
+          chmod +x dist/raw/linux/x64/et
           node scripts/release/stage-root-package.mjs --template packages/easytouch --output dist/npm/easytouch
           npm pack --dry-run ./dist/npm/easytouch
 
@@ -95,7 +129,9 @@ jobs:
         run: |
           set -euxo pipefail
           mkdir -p dist/tarballs
-          npm pack ./dist/npm/easytouch-linux --pack-destination dist/tarballs
-          export EASYTOUCH_PLATFORM_PACKAGE_SOURCE="$PWD/dist/tarballs/easytouch-linux-0.1.0-ci.tgz"
-          node dist/npm/easytouch/init.js --output dist/init-root/et --force
-          test -f dist/init-root/et
+          tgz=$(npm pack ./dist/npm/easytouch --pack-destination dist/tarballs | tail -n 1)
+          rm -rf dist/install/root
+          npm install --prefix dist/install/root "$PWD/dist/tarballs/$tgz"
+          ./dist/install/root/node_modules/.bin/easytouch init --force
+          test -f dist/install/root/node_modules/@whuanle/easytouch/et
+          ./dist/install/root/node_modules/.bin/et status

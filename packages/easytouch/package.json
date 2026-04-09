@@ -1,7 +1,7 @@
 {
   "name": "@whuanle/easytouch",
-  "version": "2.0.3",
-  "description": "Cross-platform EasyTouch launcher package that resolves to the correct platform runtime.",
+  "version": "2.0.5",
+  "description": "Cross-platform EasyTouch bundle with an init helper and prepackaged native binaries.",
   "license": "SEE LICENSE IN LICENSE.txt",
   "type": "commonjs",
   "repository": {
@@ -16,7 +16,7 @@
     "access": "public"
   },
   "bin": {
-    "et": "bin/et.js"
+    "easytouch": "init.js"
   },
   "files": [
     "bin/**",

@@ -44,6 +44,12 @@ function parseBinarySpec(repoRoot, rawSpec) {
   };
 }
 
+function stagedBinaryName(binaryName, arch) {
+  const extension = path.extname(binaryName);
+  const baseName = extension ? binaryName.slice(0, -extension.length) : binaryName;
+  return `${baseName}_${arch}${extension}`;
+}
+
 const repoRoot = path.resolve(fileURLToPath(new URL("../../", import.meta.url)));
 const templateDir = path.resolve(repoRoot, readFlag("--template"));
 const outputDir = path.resolve(repoRoot, readFlag("--output"));
@@ -62,18 +68,13 @@ await fs.copyFile(path.join(repoRoot, "README.md"), path.join(outputDir, "README
 await fs.copyFile(path.join(repoRoot, "SKILL.md"), path.join(outputDir, "SKILL.md"));
 
 for (const { arch, sourcePath } of binarySpecs) {
-  const targetDir = path.join(outputDir, "bin", arch);
-  const targetPath = path.join(targetDir, binaryName);
-  await fs.mkdir(targetDir, { recursive: true });
+  const targetPath = path.join(outputDir, "bin", stagedBinaryName(binaryName, arch));
   await fs.copyFile(sourcePath, targetPath);
 
   if (binaryName !== "et.exe") {
     await fs.chmod(targetPath, 0o755);
   }
 }
-
-const launcherPath = path.join(outputDir, "bin", "et.js");
-await fs.chmod(launcherPath, 0o755);
 
 const initScriptPath = path.join(outputDir, "init.js");
 try {

@@ -246,6 +246,42 @@ jobs:
       - name: Normalize npm package versions
         run: node scripts/release/set-version.mjs ${{ github.ref_name }}
 
+      - name: Download Windows x64 raw artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: raw-windows-x64
+          path: dist/raw/windows/x64
+
+      - name: Download Windows arm64 raw artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: raw-windows-arm64
+          path: dist/raw/windows/arm64
+
+      - name: Download Linux x64 raw artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: raw-linux-x64
+          path: dist/raw/linux/x64
+
+      - name: Download Linux arm64 raw artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: raw-linux-arm64
+          path: dist/raw/linux/arm64
+
+      - name: Download macOS x64 raw artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: raw-macos-x64
+          path: dist/raw/macos/x64
+
+      - name: Download macOS arm64 raw artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: raw-macos-arm64
+          path: dist/raw/macos/arm64
+
       - name: Stage root npm package
         run: |
           node scripts/release/stage-root-package.mjs \
